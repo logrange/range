@@ -17,7 +17,9 @@ Package embed provides bindings for embedding an range library in a program.
 
 Launch an embedded range using the configuration defaults:
 
-import (
+	package main
+
+	import (
 		"log"
 		"context"
 		"os"
@@ -27,7 +29,7 @@ import (
 	)
 
 	func main() {
-		// Creating nes journal controller in dir by os.Arg[1]
+		// Creating a new journal controller in os.Arg[1] directory
 		jc, err := embed.NewJCtrlr(embed.JCtrlrConfig{JournalsDir: os.Arg[1]})
 		if err != nil {
 			log.Fatal("Could not create new controller, err=", err)
@@ -46,8 +48,7 @@ import (
 			log.Fatal("Write err=", err)
 		}
 
-		// Sync() forces journal to fsync() its internal buffers, to have just written
-		// records be available right now
+		// telling the journal to call fsync(), to be able to iterate over the fresh data right now
 		j.Sync()
 
 		// obtaining iterator to read the journal
