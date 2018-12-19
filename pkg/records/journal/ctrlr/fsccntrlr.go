@@ -63,6 +63,7 @@ type (
 const (
 	fsCCStateNew = iota
 	fsCCStateScanned
+	fsCCStateError
 	fsCCStateStarting
 	fsCCStateStarted
 	fsCCStateClosed
@@ -89,6 +90,7 @@ const (
 var ccStateNames = map[int]string{
 	fsCCStateNew:      "NEW",
 	fsCCStateScanned:  "SCANNED",
+	fsCCStateError:    "ERROR",
 	fsCCStateStarting: "STARTING",
 	fsCCStateStarted:  "STARTED",
 	fsCCStateClosed:   "CLOSED",
@@ -117,6 +119,10 @@ func ccChunkStateName(state int) string {
 	return fmt.Sprintf("Unknown chunk state=%d", state)
 }
 
+func (fci *fsChnkInfo) String() string {
+	return fmt.Sprintf("{state:%s, chunk:%s}", ccChunkStateName(fci.state), fci.chunk)
+}
+
 func newFSChnksController(name, dir string, fdPool *chunkfs.FdPool, chunkCfg chunkfs.Config) *fsChnksController {
 	fc := new(fsChnksController)
 	fc.dir = dir
@@ -131,8 +137,13 @@ func newFSChnksController(name, dir string, fdPool *chunkfs.FdPool, chunkCfg chu
 
 func (fc *fsChnksController) ensureInit() {
 	if atomic.LoadInt32(&fc.state) == fsCCStateNew {
-		fc.scan()
+		_, err := fc.scan()
+		fc.logger.Error("ensureInit(): err=", err)
 	}
+}
+
+func (fc *fsChnksController) String() string {
+	return fmt.Sprintf("{state:%s, knwnChunks:%d, chunks:%d}", ccStateName(fc.state), len(fc.knwnChunks), len(fc.chunks))
 }
 
 // scan checks the dir to detect chunk files there and build a list of chunk Ids.
@@ -143,6 +154,8 @@ func (fc *fsChnksController) scan() ([]chunk.Id, error) {
 		return nil, err
 	}
 	defer fc.releaseSem()
+
+	fc.logger.Debug("scan() invoked")
 
 	cks, err := scanForChunks(fc.dir)
 	if err != nil {
@@ -335,7 +348,7 @@ func (fc *fsChnksController) getChunks(ctx context.Context) (chunk.Chunks, error
 			return nil, rerrors.ClosedState
 		}
 
-		if fc.state == fsCCStateNew {
+		if fc.state == fsCCStateNew || fc.state == fsCCStateError {
 			fc.lock.Unlock()
 			return nil, rerrors.WrongState
 		}
@@ -439,13 +452,24 @@ func (fc *fsChnksController) syncChunks() {
 		// if nothing to create
 		if len(toCreate) == 0 {
 			fc.chunks = make(chunk.Chunks, 0, oks)
+			allErr := len(fc.knwnChunks) > 0
 			for _, fci := range fc.knwnChunks {
+				if fci.state != fsChunkStateError {
+					allErr = false
+				}
 				if fci.state == fsChunkStateOk {
 					fc.chunks = append(fc.chunks, fci.chunk)
 				}
 			}
+
+			newState := fsCCStateStarted
+			if allErr {
+				newState = fsCCStateError
+				fc.logger.Warn("Switching state to ERROR, could not create at least one chunk of ", len(fc.knwnChunks))
+			}
+			atomic.StoreInt32(&fc.state, int32(newState))
+
 			sort.Slice(fc.chunks, func(i, j int) bool { return fc.chunks[i].Id() < fc.chunks[j].Id() })
-			atomic.StoreInt32(&fc.state, fsCCStateStarted)
 			close(fc.startingCh)
 			fc.lock.Unlock()
 			return

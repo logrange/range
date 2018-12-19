@@ -62,6 +62,11 @@ func (ci *cIterator) Next(ctx context.Context) {
 	ci.res = nil
 }
 
+// Get returns current iterator record.
+//
+// NOTE: for the implementation returns record in the internal buffer, which
+// can be overwritten after Next(). Invoker must copy record if needed or dis-
+// regard value return by the Get after calling Next() for the iterator object
 func (ci *cIterator) Get(ctx context.Context) (records.Record, error) {
 	if ci.res != nil {
 		return ci.res, nil

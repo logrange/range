@@ -22,6 +22,8 @@ package records
 
 import (
 	"context"
+
+	"github.com/logrange/range/pkg/utils/bytes"
 )
 
 type (
@@ -66,3 +68,7 @@ type (
 		Get(ctx context.Context) (Record, error)
 	}
 )
+
+func (r Record) MakeCopy() Record {
+	return Record(bytes.BytesCopy(r))
+}

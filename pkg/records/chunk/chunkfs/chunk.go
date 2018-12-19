@@ -257,6 +257,10 @@ func recoverAndNew(ctx context.Context, cfg *Config, fdPool *FdPool, newChunk bo
 			return nil, err
 		}
 
+		if cfg.MaxChunkSize <= 0 {
+			return nil, fmt.Errorf("MaxChunkSize must be more than 0")
+		}
+
 		log.Debug("Found size=", sz, ", count=", cnt)
 		w := newCWriter(cfg.FileName, sz, cfg.MaxChunkSize, cnt)
 		if cfg.WriteFlushMs > 0 {

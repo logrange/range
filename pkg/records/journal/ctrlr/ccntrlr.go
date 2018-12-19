@@ -16,6 +16,7 @@ package ctrlr
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/logrange/range/pkg/records/chunk"
 	"github.com/logrange/range/pkg/records/journal"
@@ -40,6 +41,10 @@ func newChunksController(name string, localCC *fsChnksController, adv *advertise
 	cc.clstnr = newChunkListener(cc)
 	cc.localCC.ckListener = cc.clstnr
 	return cc
+}
+
+func (cc *chnksController) String() string {
+	return fmt.Sprintf("{name:%s, adv:%v, localCC:%v, clstnr:%v}", cc.name, cc.adv, cc.localCC, cc.clstnr)
 }
 
 func (cc *chnksController) ensureInit() {

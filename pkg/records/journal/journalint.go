@@ -91,7 +91,7 @@ func (j *journal) Write(ctx context.Context, rit records.Iterator) (int, Pos, er
 
 // Sync tells write chunk to be synced. Only known application for it is in tests
 func (j *journal) Sync() {
-	c, _ := j.cc.GetChunkForWrite(nil)
+	c, _ := j.cc.GetChunkForWrite(context.Background())
 	if c != nil {
 		c.Sync()
 	}
@@ -119,7 +119,7 @@ func (j *journal) String() string {
 // then the cid. If there is no such chunks, so cid points is out
 // of the chunks range, then the method returns nil
 func (j *journal) getChunkById(cid chunk.Id) chunk.Chunk {
-	chunks, _ := j.cc.Chunks(nil)
+	chunks, _ := j.cc.Chunks(context.Background())
 	n := len(chunks)
 	if n == 0 {
 		return nil

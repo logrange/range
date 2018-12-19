@@ -22,6 +22,7 @@ import (
 	"github.com/logrange/range/pkg/cluster/model"
 	"github.com/logrange/range/pkg/records/chunk/chunkfs"
 	"github.com/logrange/range/pkg/records/journal"
+	"github.com/pkg/errors"
 )
 
 type (
@@ -40,7 +41,7 @@ type (
 
 	jrnlController struct {
 		JrnlCatalog model.JournalCatalog    `inject:""`
-		JCfg        JournalControllerConfig `inject:"JournalControllerConfig`
+		JCfg        JournalControllerConfig `inject:"JournalControllerConfig"`
 
 		fdPool *chunkfs.FdPool
 		adv    *advertiser
@@ -110,7 +111,11 @@ func (jc *jrnlController) GetOrCreate(ctx context.Context, jname string) (journa
 func (jc *jrnlController) createNewJournal(jn string) (jrnlHolder, error) {
 	pth, err := journalPath(jc.JCfg.StorageDir(), jn)
 	if err != nil {
-		return jrnlHolder{}, err
+		return jrnlHolder{}, errors.Wrapf(err, "Could not make journal path name for journal=%s", jn)
+	}
+	err = ensureDirExists(pth)
+	if err != nil {
+		return jrnlHolder{}, errors.Wrapf(err, "Could not create journal path for journal=%s", jn)
 	}
 	fscc := newFSChnksController(jn, pth, jc.fdPool, jc.JCfg.GetChunkConfig())
 	cc := newChunksController(jn, fscc, jc.adv)
