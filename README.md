@@ -1,8 +1,8 @@
 [![Go Report Card](https://goreportcard.com/badge/logrange/range)](https://goreportcard.com/report/logrange/range) [![Build Status](https://travis-ci.com/logrange/range.svg?branch=master)](https://travis-ci.com/logrange/range)[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/logrange/range/blob/master/LICENSE)[![GoDoc](https://godoc.org/github.com/logrange/range/embed?status.png)](https://godoc.org/github.com/logrange/range/embed)
 # range 
-Range is persistent storage of streams of records. It is a horizontally-scalable, highly-available, blazinbly fast streams of records aggregation system. 
+Range is persistent storage of streams of records. It is a horizontally-scalable, highly-available, blazinbly fast aggregation system of streams of records. 
 
-Range is designed to store unlimited number of sequentual records from thousands of sources. Due to its simplicity, range is very cost effective solution what makes it to be an effective tool for storing logging data, and sequential records. Range is used by [logrange](https://github.com/logrange/logrange) - distributed and extremely fast log aggregation system.
+Range is designed to store unlimited number of sequentual records from thousands of sources. Due to its simplicity, range is very cost effective solution what makes it to be an effective tool for storing logging data, dozens of millions records per second. Range is used by [logrange](https://github.com/logrange/logrange) - distributed and extremely fast log aggregation system.
 
 **Range's highlights:**
  - Streams of records data aggregation system
@@ -10,6 +10,7 @@ Range is designed to store unlimited number of sequentual records from thousands
  - Streams size-tolerant storage
  - Supports hundreds of thousands streams
  - Destigned to be an secured data storage
+ - Speed optimized for storing dozens of millions records per second
 
 ## Embedding Range as stand-alone stream storage 
 Range could be used as a library. In this configuration the streams are persisted on local file-system. Records are available via journals - persisted streams of records. The following piece of code illustrates, how it works:
