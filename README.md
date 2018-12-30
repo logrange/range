@@ -5,12 +5,12 @@ Range is persistent storage of streams of records. It is a horizontally-scalable
 Range is designed to store unlimited number of sequentual records from thousands of sources. Due to its simplicity, range is very cost effective solution what makes it to be an effective tool for storing logging data, dozens of millions records per second. Range is used by [logrange](https://github.com/logrange/logrange) - distributed and extremely fast log aggregation system.
 
 **Range's highlights:**
- - Streams of records data aggregation system
- - Available as embedded for stand-alone and distributed environments
- - Streams size-tolerant storage
- - Supports hundreds of thousands streams
- - Destigned to be an secured data storage
- - Speed optimized for storing dozens of millions records per second
+ - Aggregation system of streams of records
+ - Sstand-alone and Distributed configurations are available
+ - Streams size doesn't impact system performance
+ - Range is able to work with hundreds of thousands of streams
+ - Created for and support Security of various systems
+ - Optimized for storing dozens of millions records per second
 
 ## Embedding Range as stand-alone stream storage 
 Range could be used as a library. In this configuration the streams are persisted on local file-system. Records are available via journals - persisted streams of records. The following piece of code illustrates, how it works:
@@ -75,3 +75,10 @@ func main() {
 ## Connecting to the range server
 
  
+## License
+
+This project is licensed under the Apache Version 2.0 License - see the [LICENSE](LICENSE) file for details
+
+## Acknowledgments
+
+* GoLang IDE by [JetBrains](https://www.jetbrains.com/go/) is used for the code development
