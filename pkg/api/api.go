@@ -16,10 +16,12 @@ package api
 
 import (
 	"github.com/logrange/range/pkg/records"
+	"github.com/logrange/range/pkg/records/chunk"
 )
 
 type (
-	DataService interface {
+	Endpoint interface {
 		Write(src string, records records.Records) error
+		GetChunkById() (chunk.Chunk, error)
 	}
 )

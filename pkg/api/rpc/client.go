@@ -2,32 +2,34 @@ package rpc
 
 import (
 	"context"
+	"github.com/gogo/protobuf/proto"
 	"github.com/logrange/range/pkg/records"
+	"github.com/logrange/range/pkg/records/chunk"
+	lrpc "github.com/logrange/range/pkg/rpc"
 )
 
-type dataServiceStub struct {
-
+type clntEndpoint struct {
+	client lrpc.Client
 }
 
-func (dss *dataServiceStub) Write(src string, records records.Records) error {
+func (ce *clntEndpoint) Write(src string, records records.Records) error {
+	ce.call(cFuncWrite, WritePacket{src, records})
 	return nil
 }
 
-func (dss *dataServiceStub) Iterator(src string) (records.Records, error) {
-	return nil, nil
-}
-
-type journalIteratorStub struct {
-}
-
-func (jis *journalIteratorStub) Close() error {
-	return nil
-}
-
-func (jis *journalIteratorStub) Next(ctx context.Context) {
+func (ce *clntEndpoint) GetChunkById() (chunk chunk.Chunk, err error) {
 
 }
 
-func (jis *journalIteratorStub) Get(ctx context.Context) (records.Record, error) {
-	return nil, nil
+func (ce *clntEndpoint) call(funcId int32, p interface{}) {
+	_, err := ce.client.Call(context.Background(), funcId, p.(proto.Message))
+	if err != nil {
+
+	}
+}
+
+type chunkStub struct {
+}
+
+type chunkInteratorStub struct {
 }

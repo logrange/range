@@ -2,97 +2,96 @@ package rpc
 
 import (
 	"context"
-	"encoding/binary"
-	"fmt"
 	"github.com/jrivets/log4g"
 	lerrors "github.com/logrange/range/pkg/utils/errors"
 	"github.com/pkg/errors"
-	"io"
 	"sync"
 	"sync/atomic"
 )
 
 type (
-	signalCh chan ServerResponse
-
 	client struct {
-		logger log4g.Logger
+		logger  log4g.Logger
+		bufPool *pool
 
-		lock       sync.Mutex
-		inProgress map[int32]signalCh
-		chCache    []signalCh
-		closed     bool
+		lock      sync.Mutex
+		calls     map[int32]*call
+		freeCalls *call
+		closed    bool
 
 		wLock sync.Mutex
-		rwc   io.ReadWriteCloser
+		codec ClientCodec
+	}
+
+	resp struct {
+		opErr error
+		body  []byte
 	}
 
 	call struct {
-		srf ServerRespFunc
+		sigCh chan resp
+		next  *call
 	}
 )
 
-var caller int32
+var reqId int32
 
-func newClient(rwc io.ReadWriteCloser) *client {
+func NewClient(codec ClientCodec) Client {
 	c := new(client)
 	c.logger = log4g.GetLogger("rpc.client")
-	c.chCache = make([]signalCh, 10)
-	c.inProgress = make(map[int32]signalCh)
+	c.calls = make(map[int32]*call)
+	c.codec = codec
 	go c.readLoop()
 	return c
 }
 
-func (c *client) Call(ctx context.Context, objId int64, funcId int32, m Message, srf ServerRespFunc) error {
-	cid := atomic.AddInt32(&caller, 1)
+func (c *client) Call(ctx context.Context, funcId int, m Encodable) (respBody []byte, opErr error, err error) {
+	rid := atomic.AddInt32(&reqId, 1)
 	c.lock.Lock()
 	if c.closed {
 		c.lock.Unlock()
-		c.logger.Warn("Call(): invoked for closed client: objId=", objId, ", funcId=", funcId)
-		return lerrors.ClosedState
+		c.logger.Warn("Call(): invoked for closed client: funcId=", funcId)
+		err = lerrors.ClosedState
+		return
 	}
-	sc := c.arrangeSignalCh()
-	c.inProgress[cid] = sc
+	cl := c.arrangeCall()
+	c.calls[rid] = cl
 	c.lock.Unlock()
 
 	c.wLock.Lock()
-	err := c.sendToWire(cid, objId, funcId, m)
+	err = c.codec.WriteRequest(rid, int16(funcId), m)
 	c.wLock.Unlock()
 
 	if err != nil {
-		return errors.Wrapf(err, "Call(): sendtToWire(%d, %d, %d, m)", cid, objId, funcId)
+		c.closeByError(err)
+		err = errors.Wrapf(err, "Call(): c.codec.WriteRequest() for funcId=%d, rid=%d", funcId, rid)
+		return
 	}
 
 	select {
-	case sResp, ok := <-sc:
+	case sResp, ok := <-cl.sigCh:
 		if !ok {
 			c.logger.Warn("Call(): signal channel was closed")
-			return lerrors.ClosedState
+			err = lerrors.ClosedState
+			return
 		}
-		if srf != nil {
-			srf(sResp)
-		}
-	//TODO release sResp
+		respBody = sResp.body
+		opErr = sResp.opErr
 	case <-ctx.Done():
 		c.logger.Debug("Call(): ctx is closed before receiving result")
 		err = ctx.Err()
 	}
 
 	c.lock.Lock()
-	delete(c.inProgress, cid)
-	// purge sc if needed
-	select {
-	case sResp, ok := <-sc:
-		if ok {
-			//TODO release sResp
-			_ = sResp
-		}
-	default:
-
-	}
-	c.releaseSignalCh(sc)
+	// either way it was signalled, or not - removing the call from the list
+	delete(c.calls, rid)
+	c.releaseCall(cl)
 	c.lock.Unlock()
-	return err
+	return
+}
+
+func (c *client) Collect(buf []byte) {
+	c.bufPool.release(buf)
 }
 
 func (c *client) Close() error {
@@ -108,23 +107,25 @@ func (c *client) close() error {
 	}
 
 	c.closed = true
-	for _, sc := range c.inProgress {
-		close(sc)
+	for _, cl := range c.calls {
+		close(cl.sigCh)
 	}
 
-	for _, sc := range c.chCache {
-		close(sc)
+	for c.freeCalls != nil {
+		cl := c.freeCalls
+		close(cl.sigCh)
+		c.freeCalls = cl.next
+		cl.next = nil
 	}
-	c.inProgress = nil
-	c.chCache = nil
-	return c.rwc.Close()
+	c.calls = nil
+	return c.codec.Close()
 }
 
 func (c *client) closeByError(err error) {
-	c.logger.Error("closeByError(): err=", err)
 	if err == nil {
 		return
 	}
+	c.logger.Error("closeByError(): err=", err)
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.close()
@@ -134,100 +135,61 @@ func (c *client) readLoop() {
 	c.logger.Info("readLoop(): starting.")
 	defer c.logger.Info("readLoop(): ending.")
 	for {
-		var cid int32
-		err := binary.Read(c.rwc, binary.BigEndian, &cid)
+		reqId, opErr, bodySize, err := c.codec.ReadResponse()
 		if err != nil {
 			c.closeByError(err)
 			return
 		}
 
-		var eCode int32
-		err = binary.Read(c.rwc, binary.BigEndian, &eCode)
+		buf := c.bufPool.arrange(bodySize)
+		err = c.codec.ReadResponseBody(buf)
 		if err != nil {
 			c.closeByError(err)
+			c.bufPool.release(buf)
 			return
-		}
-
-		var sz int32
-		err = binary.Read(c.rwc, binary.BigEndian, &sz)
-		if err != nil {
-			c.closeByError(err)
-			return
-		}
-
-		var sResp ServerResponse
-		if sz > 0 {
-			sResp.EncodedMessage = make([]byte, sz) // TODO must be pool
-			err = binary.Read(c.rwc, binary.BigEndian, sResp.EncodedMessage)
-			if err != nil {
-				c.closeByError(err)
-				return
-			}
-		}
-
-		if eCode > 0 {
-			sResp.Error = fmt.Errorf(string(sResp.EncodedMessage))
-			sResp.EncodedMessage = nil
 		}
 
 		c.lock.Lock()
 		if c.closed {
 			c.lock.Unlock()
+			c.bufPool.release(buf)
 			c.logger.Info("readLoop(): closed state detected")
 			return
 		}
 
-		if sc, ok := c.inProgress[cid]; ok {
-			sc <- sResp
+		if cl, ok := c.calls[reqId]; ok {
+			resp := resp{opErr: opErr, body: buf}
+			cl.sigCh <- resp
+			// remove the call from the list as already signaled...
+			delete(c.calls, reqId)
 		} else {
-			//TODO release sResp
+			c.bufPool.release(buf)
 		}
 		c.lock.Unlock()
-
 	}
 }
 
-func (c *client) sendToWire(cid int32, objId int64, funcId int32, m Message) error {
-	err := binary.Write(c.rwc, binary.BigEndian, cid)
-	if err != nil {
-		return err
+func (c *client) arrangeCall() *call {
+	if c.freeCalls == nil {
+		cl := new(call)
+		cl.sigCh = make(chan resp, 1)
+		return cl
 	}
 
-	err = binary.Write(c.rwc, binary.BigEndian, objId)
-	if err != nil {
-		return err
-	}
-
-	err = binary.Write(c.rwc, binary.BigEndian, funcId)
-	if err != nil {
-		return err
-	}
-
-	err = binary.Write(c.rwc, binary.BigEndian, m.Size())
-	if err != nil {
-		return err
-	}
-
-	return m.Marshal(c.rwc)
-}
-
-func (c *client) arrangeSignalCh() signalCh {
-	var res signalCh
-	idx := len(c.chCache) - 1
-	if idx >= 0 {
-		res = c.chCache[idx]
-		c.chCache[idx] = nil
-		c.chCache = c.chCache[:idx]
-	} else {
-		res = make(chan ServerResponse, 1)
-	}
+	res := c.freeCalls
+	c.freeCalls = res.next
+	res.next = nil
 	return res
 }
 
-func (c *client) releaseSignalCh(sc signalCh) {
-	if len(c.chCache) < cap(c.chCache) {
-		c.chCache = append(c.chCache, sc)
-	} else {
-		close(sc)
+func (c *client) releaseCall(cl *call) {
+	select {
+	case sResp, ok := <-cl.sigCh:
+		if ok {
+			c.bufPool.release(sResp.body)
+		}
+	default:
 	}
+	cl.next = c.freeCalls
+	c.freeCalls = cl.next
 }
