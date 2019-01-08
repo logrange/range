@@ -1,3 +1,17 @@
+// Copyright 2018 The logrange Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package rpc
 
 import (
@@ -5,6 +19,7 @@ import (
 	"github.com/jrivets/log4g"
 	lerrors "github.com/logrange/range/pkg/utils/errors"
 	"github.com/pkg/errors"
+	"io"
 	"sync"
 	"sync/atomic"
 )
@@ -20,7 +35,7 @@ type (
 		closed    bool
 
 		wLock sync.Mutex
-		codec ClientCodec
+		codec *clntIOCodec
 	}
 
 	resp struct {
@@ -36,15 +51,17 @@ type (
 
 var reqId int32
 
-func NewClient(codec ClientCodec) Client {
+// NewClient creates new Client object for building RPC over rwc
+func NewClient(rwc io.ReadWriteCloser) *client {
 	c := new(client)
 	c.logger = log4g.GetLogger("rpc.client")
 	c.calls = make(map[int32]*call)
-	c.codec = codec
+	c.codec = newClntIOCodec(rwc)
 	go c.readLoop()
 	return c
 }
 
+// Call allows to make synchronous RPC call to server side
 func (c *client) Call(ctx context.Context, funcId int, m Encodable) (respBody []byte, opErr error, err error) {
 	rid := atomic.AddInt32(&reqId, 1)
 	c.lock.Lock()
@@ -59,12 +76,12 @@ func (c *client) Call(ctx context.Context, funcId int, m Encodable) (respBody []
 	c.lock.Unlock()
 
 	c.wLock.Lock()
-	err = c.codec.WriteRequest(rid, int16(funcId), m)
+	err = c.codec.writeRequest(rid, int16(funcId), m)
 	c.wLock.Unlock()
 
 	if err != nil {
 		c.closeByError(err)
-		err = errors.Wrapf(err, "Call(): c.codec.WriteRequest() for funcId=%d, rid=%d", funcId, rid)
+		err = errors.Wrapf(err, "Call(): c.codec.writeRequest() for funcId=%d, rid=%d", funcId, rid)
 		return
 	}
 
@@ -90,15 +107,23 @@ func (c *client) Call(ctx context.Context, funcId int, m Encodable) (respBody []
 	return
 }
 
+// Collect allows to put buf to the Pool of buffers
 func (c *client) Collect(buf []byte) {
 	c.bufPool.release(buf)
 }
 
+// Close closes the Client
 func (c *client) Close() error {
 	c.logger.Info("Close()")
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	return c.close()
+}
+
+func (c *client) isClosed() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.closed
 }
 
 func (c *client) close() error {
@@ -135,14 +160,14 @@ func (c *client) readLoop() {
 	c.logger.Info("readLoop(): starting.")
 	defer c.logger.Info("readLoop(): ending.")
 	for {
-		reqId, opErr, bodySize, err := c.codec.ReadResponse()
+		reqId, opErr, bodySize, err := c.codec.readResponse()
 		if err != nil {
 			c.closeByError(err)
 			return
 		}
 
 		buf := c.bufPool.arrange(bodySize)
-		err = c.codec.ReadResponseBody(buf)
+		err = c.codec.readResponseBody(buf)
 		if err != nil {
 			c.closeByError(err)
 			c.bufPool.release(buf)

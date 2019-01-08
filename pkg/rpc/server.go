@@ -1,8 +1,23 @@
+// Copyright 2018 The logrange Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package rpc
 
 import (
 	"github.com/jrivets/log4g"
 	"github.com/logrange/range/pkg/utils/errors"
+	"io"
 	"sync"
 	"sync/atomic"
 )
@@ -15,13 +30,13 @@ type (
 		bufPool *pool
 		closed  bool
 		funcs   atomic.Value
-		conns   map[interface{}]*serverConn
+		conns   map[interface{}]*ServerConn
 	}
 
-	serverConn struct {
+	ServerConn struct {
 		lock   sync.Mutex
 		srvr   *server
-		codec  ServerCodec
+		codec  *srvIOCodec
 		logger log4g.Logger
 		closed int32
 		wLock  sync.Mutex
@@ -32,7 +47,7 @@ func NewServer() *server {
 	s := new(server)
 	s.logger = log4g.GetLogger("rpc.server")
 	s.funcs.Store(make(map[int16]OnClientReqFunc))
-	s.conns = make(map[interface{}]*serverConn)
+	s.conns = make(map[interface{}]*ServerConn)
 	s.bufPool = new(pool)
 	return s
 }
@@ -55,16 +70,18 @@ func (s *server) Register(funcId int, cb OnClientReqFunc) error {
 	return nil
 }
 
-func (s *server) Serve(srvCodec ServerCodec) error {
+func (s *server) Serve(codecId string, rwc io.ReadWriteCloser) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if s.closed {
 		return errors.ClosedState
 	}
 
-	sc := new(serverConn)
-	sc.logger = log4g.GetLogger("rpc.serverConn").WithId("{" + srvCodec.Id() + "}").(log4g.Logger)
-	sc.codec = srvCodec
+	scodec := newSrvIOCodec(codecId, rwc)
+
+	sc := new(ServerConn)
+	sc.logger = log4g.GetLogger("rpc.ServerConn").WithId("{" + scodec.id + "}").(log4g.Logger)
+	sc.codec = scodec
 	sc.srvr = s
 	s.conns[sc] = sc
 	go sc.readLoop()
@@ -91,7 +108,7 @@ func (s *server) Close() error {
 	return nil
 }
 
-func (s *server) onClose(sc *serverConn) {
+func (s *server) onClose(sc *ServerConn) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -102,7 +119,7 @@ func (s *server) onClose(sc *serverConn) {
 	delete(s.conns, sc)
 }
 
-func (s *server) call(funcId int16, reqId int32, reqBody []byte, sc *serverConn) {
+func (s *server) call(funcId int16, reqId int32, reqBody []byte, sc *ServerConn) {
 	funcs := s.funcs.Load().(map[int16]OnClientReqFunc)
 	if f, ok := funcs[funcId]; ok {
 		f(reqId, reqBody, sc)
@@ -112,18 +129,18 @@ func (s *server) call(funcId int16, reqId int32, reqBody []byte, sc *serverConn)
 	s.bufPool.release(reqBody)
 }
 
-func (sc *serverConn) Collect(buf []byte) {
+func (sc *ServerConn) Collect(buf []byte) {
 	sc.srvr.bufPool.release(buf)
 }
 
 // SendResponse allows to send the response by the request id
-func (sc *serverConn) SendResponse(reqId int32, opErr error, msg Encodable) {
+func (sc *ServerConn) SendResponse(reqId int32, opErr error, msg Encodable) {
 	if atomic.LoadInt32(&sc.closed) != 0 {
 		return
 	}
 
 	sc.wLock.Lock()
-	err := sc.codec.WriteResponse(reqId, opErr, msg)
+	err := sc.codec.writeResponse(reqId, opErr, msg)
 	sc.wLock.Unlock()
 
 	if err != nil {
@@ -132,7 +149,7 @@ func (sc *serverConn) SendResponse(reqId int32, opErr error, msg Encodable) {
 	}
 }
 
-func (sc *serverConn) Close() error {
+func (sc *ServerConn) Close() error {
 	sc.lock.Lock()
 	defer sc.lock.Unlock()
 	if atomic.LoadInt32(&sc.closed) != 0 {
@@ -146,12 +163,12 @@ func (sc *serverConn) Close() error {
 	return nil
 }
 
-func (sc *serverConn) closeByError(err error) {
+func (sc *ServerConn) closeByError(err error) {
 	sc.logger.Warn("closeByError(): err=", err)
 	sc.Close()
 }
 
-func (sc *serverConn) readLoop() {
+func (sc *ServerConn) readLoop() {
 	sc.logger.Info("readLoop(): starting")
 	defer sc.logger.Info("readLoop(): ending")
 	for atomic.LoadInt32(&sc.closed) == 0 {
@@ -164,15 +181,15 @@ func (sc *serverConn) readLoop() {
 	}
 }
 
-func (sc *serverConn) readFromWire() (funcId int16, reqId int32, body []byte, err error) {
+func (sc *ServerConn) readFromWire() (funcId int16, reqId int32, body []byte, err error) {
 	var bsz int
-	reqId, funcId, bsz, err = sc.codec.ReadRequest()
+	reqId, funcId, bsz, err = sc.codec.readRequest()
 	if err != nil {
 		return
 	}
 
 	body = sc.srvr.bufPool.arrange(bsz)
-	err = sc.codec.ReadRequestBody(body)
+	err = sc.codec.readRequestBody(body)
 	if err != nil {
 		sc.srvr.bufPool.release(body)
 		body = nil

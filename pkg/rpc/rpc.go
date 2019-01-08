@@ -1,8 +1,25 @@
+// Copyright 2018 The logrange Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package rpc
 
 import (
 	"context"
+	"github.com/pkg/errors"
 	"io"
+	"sync"
+	"sync/atomic"
 )
 
 type (
@@ -12,19 +29,6 @@ type (
 		EncodedSize() int
 		// Encode
 		Encode(writer io.Writer) error
-	}
-
-	// ClientCodec interface represents client connection on the client side.
-	ClientCodec interface {
-		io.Closer
-
-		// WriteRequest encodes and writes the packet to the wire
-		WriteRequest(reqId int32, funcId int16, msg Encodable) error
-		// ReadResponse reads the server response header
-		ReadResponse() (reqId int32, opErr error, bodySize int, err error)
-		// ReadResponseBody reads the server response's body to the buffer provided. The len(body) must be the bodySize
-		// returned by the ReadResponse for the response.
-		ReadResponseBody(body []byte) error
 	}
 
 	// Client allows to make remote calls to the server
@@ -39,30 +43,9 @@ type (
 		Call(ctx context.Context, funcId int, msg Encodable) (respBody []byte, opErr error, err error)
 	}
 
-	// ServerCodec is an interface which represents the server connection on the server side
-	ServerCodec interface {
-		io.Closer
-
-		// Id contains the Id for the server codec connection.
-		Id() string
-
-		ReadRequest() (reqId int32, funcId int16, bodySize int, err error)
-		ReadRequestBody(body []byte) error
-		WriteResponse(reqId int32, opErr error, msg Encodable) error
-	}
-
-	// Responder an interface provided to the ClientRequest callback function with a purpose to send response over there.
-	Responder interface {
-		// BufCollector interface is provided by the responder to be able to utilize request body, if needed
-		BufCollector
-
-		// SendResponse allows to send the response by the request id
-		SendResponse(reqId int32, srvErr error, msg Encodable)
-	}
-
 	// OnClientReqFunc represents a server endpoint for handling a client call. The function will be selected by Server
 	// by the funcId received in the request.
-	OnClientReqFunc func(reqId int32, reqBody []byte, resp Responder)
+	OnClientReqFunc func(reqId int32, reqBody []byte, sc *ServerConn)
 
 	// Server supports server implementation for client requests handling.
 	Server interface {
@@ -71,7 +54,7 @@ type (
 		Register(funcId int, cb OnClientReqFunc) error
 		// Serve is called for sc - the server code which will be served until the codec is closed or the server is
 		// shutdown
-		Serve(sc ServerCodec) error
+		Serve(connId string, rwc io.ReadWriteCloser) error
 	}
 
 	// BufCollector allows to collect byte buffers that are not going to be used anymore. The buffers could be
@@ -81,3 +64,30 @@ type (
 		Collect(buf []byte)
 	}
 )
+
+var knwnErrors atomic.Value
+var errsMtx sync.Mutex
+
+// RegisterError allows to register an error like io.EOF, which then will be returned by its name from Client.Call as
+// opError
+func RegisterError(err error) {
+	errsMtx.Lock()
+	defer errsMtx.Unlock()
+
+	newMap := make(map[string]error)
+	knwnMap, _ := knwnErrors.Load().(map[string]error)
+	for k, v := range knwnMap {
+		newMap[k] = v
+	}
+	newMap[err.Error()] = err
+	knwnErrors.Store(newMap)
+}
+
+func errorByText(errTxt string) error {
+	if mp, ok := knwnErrors.Load().(map[string]error); ok {
+		if err, ok := mp[errTxt]; ok {
+			return err
+		}
+	}
+	return errors.New(errTxt)
+}

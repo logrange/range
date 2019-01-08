@@ -1,9 +1,23 @@
+// Copyright 2018 The logrange Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package rpc
 
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
+	"github.com/logrange/range/pkg/utils/bytes"
 	"io"
 )
 
@@ -22,7 +36,7 @@ type (
 	}
 )
 
-func NewClntIOCodec(rwc io.ReadWriteCloser) *clntIOCodec {
+func newClntIOCodec(rwc io.ReadWriteCloser) *clntIOCodec {
 	cc := new(clntIOCodec)
 	cc.rwc = rwc
 	cc.wrtr = bufio.NewWriter(rwc)
@@ -34,7 +48,7 @@ func (cc *clntIOCodec) Close() error {
 	return cc.rwc.Close()
 }
 
-func (cc *clntIOCodec) WriteRequest(reqId int32, funcId int16, msg Encodable) error {
+func (cc *clntIOCodec) writeRequest(reqId int32, funcId int16, msg Encodable) error {
 	err := binary.Write(cc.wrtr, binary.BigEndian, reqId)
 	if err != nil {
 		return err
@@ -57,7 +71,7 @@ func (cc *clntIOCodec) WriteRequest(reqId int32, funcId int16, msg Encodable) er
 	return err
 }
 
-func (cc *clntIOCodec) ReadResponse() (reqId int32, opErr error, bodySize int, err error) {
+func (cc *clntIOCodec) readResponse() (reqId int32, opErr error, bodySize int, err error) {
 	buf := cc.hbuf[:]
 	_, err = io.ReadFull(cc.rwc, buf)
 	if err != nil {
@@ -65,27 +79,27 @@ func (cc *clntIOCodec) ReadResponse() (reqId int32, opErr error, bodySize int, e
 	}
 	reqId = int32(binary.BigEndian.Uint32(buf))
 	errCode := int(binary.BigEndian.Uint16(buf[4:]))
+	bodySize = int(binary.BigEndian.Uint32(buf[6:]))
 
 	if errCode != 0 {
 		buf = make([]byte, bodySize)
+		bodySize = 0
 		_, err = io.ReadFull(cc.rwc, buf)
 		if err != nil {
 			return
 		}
-		opErr = fmt.Errorf(string(buf))
-	} else {
-		bodySize = int(binary.BigEndian.Uint32(buf[6:]))
+		opErr = errorByText(bytes.ByteArrayToString(buf))
 	}
 
 	return
 }
 
-func (cc *clntIOCodec) ReadResponseBody(body []byte) error {
+func (cc *clntIOCodec) readResponseBody(body []byte) error {
 	_, err := io.ReadFull(cc.rwc, body)
 	return err
 }
 
-func NewSrvIOCodec(id string, rwc io.ReadWriteCloser) *srvIOCodec {
+func newSrvIOCodec(id string, rwc io.ReadWriteCloser) *srvIOCodec {
 	sc := new(srvIOCodec)
 	sc.id = id
 	sc.rwc = rwc
@@ -93,16 +107,12 @@ func NewSrvIOCodec(id string, rwc io.ReadWriteCloser) *srvIOCodec {
 	return sc
 }
 
-func (sc *srvIOCodec) Id() string {
-	return sc.id
-}
-
 func (sc *srvIOCodec) Close() error {
 	sc.wrtr.Flush()
 	return sc.rwc.Close()
 }
 
-func (sc *srvIOCodec) ReadRequest() (reqId int32, funcId int16, bodySize int, err error) {
+func (sc *srvIOCodec) readRequest() (reqId int32, funcId int16, bodySize int, err error) {
 	buf := sc.hbuf[:]
 	_, err = io.ReadFull(sc.rwc, buf)
 	if err != nil {
@@ -114,12 +124,12 @@ func (sc *srvIOCodec) ReadRequest() (reqId int32, funcId int16, bodySize int, er
 	return
 }
 
-func (sc *srvIOCodec) ReadRequestBody(body []byte) error {
+func (sc *srvIOCodec) readRequestBody(body []byte) error {
 	_, err := io.ReadFull(sc.rwc, body)
 	return err
 }
 
-func (sc *srvIOCodec) WriteResponse(reqId int32, opErr error, msg Encodable) error {
+func (sc *srvIOCodec) writeResponse(reqId int32, opErr error, msg Encodable) error {
 	err := binary.Write(sc.wrtr, binary.BigEndian, reqId)
 	if err != nil {
 		return err
@@ -136,7 +146,7 @@ func (sc *srvIOCodec) WriteResponse(reqId int32, opErr error, msg Encodable) err
 	}
 
 	if errCode != 0 {
-		buf := []byte(opErr.Error())
+		buf := bytes.StringToByteArray(opErr.Error())
 		sz := int32(len(buf))
 		err = binary.Write(sc.wrtr, binary.BigEndian, sz)
 		if err != nil {
@@ -144,6 +154,7 @@ func (sc *srvIOCodec) WriteResponse(reqId int32, opErr error, msg Encodable) err
 		}
 
 		err = binary.Write(sc.wrtr, binary.BigEndian, buf)
+		sc.wrtr.Flush()
 		return err
 	}
 

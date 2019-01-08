@@ -14,6 +14,11 @@
 
 package bytes
 
+import (
+	"reflect"
+	"unsafe"
+)
+
 // BytesCopy makes a copy of src slice of bytes
 func BytesCopy(src []byte) []byte {
 	if len(src) == 0 {
@@ -22,4 +27,25 @@ func BytesCopy(src []byte) []byte {
 	b := make([]byte, len(src))
 	copy(b, src)
 	return b
+}
+
+// StringToByteArray gets a string and turn it to []byte without extra memoy allocations
+//
+// NOTE! Using this function is extremely dangerous, so it can be done with
+// extra care with clear understanding how it works
+func StringToByteArray(v string) []byte {
+	var slcHdr reflect.SliceHeader
+	sh := *(*reflect.StringHeader)(unsafe.Pointer(&v))
+	slcHdr.Data = sh.Data
+	slcHdr.Cap = sh.Len
+	slcHdr.Len = sh.Len
+	return *(*[]byte)(unsafe.Pointer(&slcHdr))
+}
+
+// ByteArrayToString turns a slice of bytes to string, without extra memory allocations
+//
+// NOTE! Using this function is extremely dangerous, so it can be done with
+// extra care with clear understanding how it works
+func ByteArrayToString(buf []byte) string {
+	return *(*string)(unsafe.Pointer(&buf))
 }
