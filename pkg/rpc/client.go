@@ -17,6 +17,8 @@ package rpc
 import (
 	"context"
 	"github.com/jrivets/log4g"
+	"github.com/logrange/range/pkg/utils/bytes"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	lerrors "github.com/logrange/range/pkg/utils/errors"
 	"github.com/pkg/errors"
 	"io"
@@ -27,7 +29,7 @@ import (
 type (
 	client struct {
 		logger  log4g.Logger
-		bufPool *pool
+		bufPool *bytes.Pool
 
 		lock      sync.Mutex
 		calls     map[int32]*call
@@ -62,7 +64,7 @@ func NewClient(rwc io.ReadWriteCloser) *client {
 }
 
 // Call allows to make synchronous RPC call to server side
-func (c *client) Call(ctx context.Context, funcId int, m Encodable) (respBody []byte, opErr error, err error) {
+func (c *client) Call(ctx context.Context, funcId int, m xbinary.Writable) (respBody []byte, opErr error, err error) {
 	rid := atomic.AddInt32(&reqId, 1)
 	c.lock.Lock()
 	if c.closed {
@@ -109,7 +111,7 @@ func (c *client) Call(ctx context.Context, funcId int, m Encodable) (respBody []
 
 // Collect allows to put buf to the Pool of buffers
 func (c *client) Collect(buf []byte) {
-	c.bufPool.release(buf)
+	c.bufPool.Release(buf)
 }
 
 // Close closes the Client
@@ -166,18 +168,18 @@ func (c *client) readLoop() {
 			return
 		}
 
-		buf := c.bufPool.arrange(bodySize)
+		buf := c.bufPool.Arrange(bodySize)
 		err = c.codec.readResponseBody(buf)
 		if err != nil {
 			c.closeByError(err)
-			c.bufPool.release(buf)
+			c.bufPool.Release(buf)
 			return
 		}
 
 		c.lock.Lock()
 		if c.closed {
 			c.lock.Unlock()
-			c.bufPool.release(buf)
+			c.bufPool.Release(buf)
 			c.logger.Info("readLoop(): closed state detected")
 			return
 		}
@@ -188,7 +190,7 @@ func (c *client) readLoop() {
 			// remove the call from the list as already signaled...
 			delete(c.calls, reqId)
 		} else {
-			c.bufPool.release(buf)
+			c.bufPool.Release(buf)
 		}
 		c.lock.Unlock()
 	}
@@ -211,7 +213,7 @@ func (c *client) releaseCall(cl *call) {
 	select {
 	case sResp, ok := <-cl.sigCh:
 		if ok {
-			c.bufPool.release(sResp.body)
+			c.bufPool.Release(sResp.body)
 		}
 	default:
 	}

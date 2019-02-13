@@ -16,6 +16,8 @@ package rpc
 
 import (
 	"github.com/jrivets/log4g"
+	"github.com/logrange/range/pkg/utils/bytes"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"github.com/logrange/range/pkg/utils/errors"
 	"io"
 	"sync"
@@ -27,7 +29,7 @@ type (
 		logger log4g.Logger
 
 		lock    sync.Mutex
-		bufPool *pool
+		bufPool *bytes.Pool
 		closed  bool
 		funcs   atomic.Value
 		conns   map[interface{}]*ServerConn
@@ -48,7 +50,7 @@ func NewServer() *server {
 	s.logger = log4g.GetLogger("rpc.server")
 	s.funcs.Store(make(map[int16]OnClientReqFunc))
 	s.conns = make(map[interface{}]*ServerConn)
-	s.bufPool = new(pool)
+	s.bufPool = new(bytes.Pool)
 	return s
 }
 
@@ -126,15 +128,15 @@ func (s *server) call(funcId int16, reqId int32, reqBody []byte, sc *ServerConn)
 		return
 	}
 	s.logger.Warn("Got request ", reqId, " for unregistered function ", funcId, "skiping it")
-	s.bufPool.release(reqBody)
+	s.bufPool.Release(reqBody)
 }
 
 func (sc *ServerConn) Collect(buf []byte) {
-	sc.srvr.bufPool.release(buf)
+	sc.srvr.bufPool.Release(buf)
 }
 
 // SendResponse allows to send the response by the request id
-func (sc *ServerConn) SendResponse(reqId int32, opErr error, msg Encodable) {
+func (sc *ServerConn) SendResponse(reqId int32, opErr error, msg xbinary.Writable) {
 	if atomic.LoadInt32(&sc.closed) != 0 {
 		return
 	}
@@ -188,10 +190,10 @@ func (sc *ServerConn) readFromWire() (funcId int16, reqId int32, body []byte, er
 		return
 	}
 
-	body = sc.srvr.bufPool.arrange(bsz)
+	body = sc.srvr.bufPool.Arrange(bsz)
 	err = sc.codec.readRequestBody(body)
 	if err != nil {
-		sc.srvr.bufPool.release(body)
+		sc.srvr.bufPool.Release(body)
 		body = nil
 	}
 	return

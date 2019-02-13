@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"github.com/logrange/range/pkg/utils/bytes"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"io"
 )
 
@@ -48,7 +49,7 @@ func (cc *clntIOCodec) Close() error {
 	return cc.rwc.Close()
 }
 
-func (cc *clntIOCodec) writeRequest(reqId int32, funcId int16, msg Encodable) error {
+func (cc *clntIOCodec) writeRequest(reqId int32, funcId int16, msg xbinary.Writable) error {
 	err := binary.Write(cc.wrtr, binary.BigEndian, reqId)
 	if err != nil {
 		return err
@@ -59,13 +60,13 @@ func (cc *clntIOCodec) writeRequest(reqId int32, funcId int16, msg Encodable) er
 		return err
 	}
 
-	sz := int32(msg.EncodedSize())
+	sz := int32(msg.WritableSize())
 	err = binary.Write(cc.wrtr, binary.BigEndian, sz)
 	if err != nil {
 		return err
 	}
 
-	err = msg.Encode(cc.wrtr)
+	err = msg.WriteTo(cc.wrtr)
 
 	cc.wrtr.Flush()
 	return err
@@ -129,7 +130,7 @@ func (sc *srvIOCodec) readRequestBody(body []byte) error {
 	return err
 }
 
-func (sc *srvIOCodec) writeResponse(reqId int32, opErr error, msg Encodable) error {
+func (sc *srvIOCodec) writeResponse(reqId int32, opErr error, msg xbinary.Writable) error {
 	err := binary.Write(sc.wrtr, binary.BigEndian, reqId)
 	if err != nil {
 		return err
@@ -158,13 +159,13 @@ func (sc *srvIOCodec) writeResponse(reqId int32, opErr error, msg Encodable) err
 		return err
 	}
 
-	sz := int32(msg.EncodedSize())
+	sz := int32(msg.WritableSize())
 	err = binary.Write(sc.wrtr, binary.BigEndian, sz)
 	if err != nil {
 		return err
 	}
 
-	err = msg.Encode(sc.wrtr)
+	err = msg.WriteTo(sc.wrtr)
 	sc.wrtr.Flush()
 	return err
 }

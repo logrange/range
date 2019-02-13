@@ -28,11 +28,11 @@ import (
 
 type echoPacket []byte
 
-func (ep echoPacket) EncodedSize() int {
+func (ep echoPacket) WritableSize() int {
 	return len(ep)
 }
 
-func (ep echoPacket) Encode(writer io.Writer) error {
+func (ep echoPacket) WriteTo(writer io.Writer) error {
 	return binary.Write(writer, binary.BigEndian, ep)
 }
 

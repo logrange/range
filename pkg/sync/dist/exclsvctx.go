@@ -16,7 +16,7 @@ package dist
 import (
 	"context"
 
-	"github.com/logrange/logrange/pkg/kv"
+	"github.com/logrange/range/pkg/kv"
 )
 
 // AcquireExclusiveCtx allows to acquire the exclusive context by a name provided.

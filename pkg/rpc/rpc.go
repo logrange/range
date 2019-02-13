@@ -16,6 +16,7 @@ package rpc
 
 import (
 	"context"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"github.com/pkg/errors"
 	"io"
 	"sync"
@@ -23,13 +24,13 @@ import (
 )
 
 type (
-	// Encodable is an interface which must be implemented by user packets, which is sent over the wires.
-	Encodable interface {
-		// EncodedSize returns number of bytes the message needs to be encoded as a []byte
-		EncodedSize() int
-		// Encode
-		Encode(writer io.Writer) error
-	}
+	//// Encodable is an interface which must be implemented by user packets, which is sent over the wires.
+	//Encodable interface {
+	//	// EncodedSize returns number of bytes the message needs to be encoded as a []byte
+	//	EncodedSize() int
+	//	// Encode
+	//	Encode(writer io.Writer) error
+	//}
 
 	// Client allows to make remote calls to the server
 	Client interface {
@@ -40,7 +41,7 @@ type (
 		// calling go-routine until ctx is done, a response is received or an error happens related to the Call processing.
 		// It returns response body, opErr contains the function execution error, which doesn't relate to the connection.
 		// The err contains an error related to the call execution (connection problems etc.)
-		Call(ctx context.Context, funcId int, msg Encodable) (respBody []byte, opErr error, err error)
+		Call(ctx context.Context, funcId int, msg xbinary.Writable) (respBody []byte, opErr error, err error)
 	}
 
 	// OnClientReqFunc represents a server endpoint for handling a client call. The function will be selected by Server

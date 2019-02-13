@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package rpc
+package bytes
 
-type (
-	pool struct {
-	}
-)
-
-func (p *pool) arrange(size int) []byte {
-	return make([]byte, size)
+// Pool manages a pool of slices of bytes. It is supposed to use the pool in
+// highly loaded apps where slice of bytes are needed often. An example could be
+// handling a network packages.
+type Pool struct {
 }
 
-func (p *pool) release(b []byte) {
-	// Later
+func (p *Pool) Arrange(size int) []byte {
+	b := make([]byte, size)
+	return b
+}
+
+func (p *Pool) Release(buf []byte) {
+
 }

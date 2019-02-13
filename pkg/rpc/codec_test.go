@@ -57,11 +57,11 @@ func (rwc *rwcs) Close() error {
 
 type testMsg []byte
 
-func (tm testMsg) EncodedSize() int {
+func (tm testMsg) WritableSize() int {
 	return len(tm)
 }
 
-func (tm testMsg) Encode(writer io.Writer) error {
+func (tm testMsg) WriteTo(writer io.Writer) error {
 	return binary.Write(writer, binary.BigEndian, tm)
 }
 
