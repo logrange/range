@@ -66,7 +66,7 @@ func (cc *clntIOCodec) writeRequest(reqId int32, funcId int16, msg xbinary.Writa
 		return err
 	}
 
-	err = msg.WriteTo(cc.wrtr)
+	_, err = msg.WriteTo(cc.wrtr)
 
 	cc.wrtr.Flush()
 	return err
@@ -165,7 +165,7 @@ func (sc *srvIOCodec) writeResponse(reqId int32, opErr error, msg xbinary.Writab
 		return err
 	}
 
-	err = msg.WriteTo(sc.wrtr)
+	_, err = msg.WriteTo(sc.wrtr)
 	sc.wrtr.Flush()
 	return err
 }

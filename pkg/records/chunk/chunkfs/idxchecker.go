@@ -188,7 +188,7 @@ func (ic *IdxChecker) Recover(fixData bool) error {
 		tPos = nPos
 
 		binary.BigEndian.PutUint64(offsBuf, uint64(gdPos))
-		_, err = iw.write(offsBuf)
+		_, err = iw.writeBuf(offsBuf)
 		if err != nil {
 			ic.logger.Error("Recover(): could not write offset=", gdPos, " for record ", cnt, " to the index file. err=", err)
 			break

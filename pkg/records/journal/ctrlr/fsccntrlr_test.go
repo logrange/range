@@ -17,6 +17,7 @@ package ctrlr
 import (
 	"context"
 	"fmt"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"io/ioutil"
 	"os"
 	"path"
@@ -39,8 +40,8 @@ func TestFsCCScan(t *testing.T) {
 	defer ft.done()
 
 	fmt.Println("dir=", ft.dir)
-	ft.createChunk(t, "BB.dat", records.SrtingsIterator("aaa", "bbb"))
-	ft.createChunk(t, "AA.dat", records.SrtingsIterator("aaa", "bbb"))
+	ft.createChunk(t, "BB.dat", &records.WrIterator{records.SrtingsIterator("aaa", "bbb")})
+	ft.createChunk(t, "AA.dat", &records.WrIterator{records.SrtingsIterator("aaa", "bbb")})
 	fc := ft.newFSChnksController()
 	for i := 0; i < 3; i++ {
 		cks, err := fc.scan()
@@ -78,8 +79,8 @@ func TestFsGetChunks(t *testing.T) {
 	ft := initFT(t)
 	defer ft.done()
 
-	ft.createChunk(t, chunkfs.MakeChunkFileName("", 0xBB), records.SrtingsIterator("aaa", "bbb"))
-	ft.createChunk(t, chunkfs.MakeChunkFileName("", 0xAA), records.SrtingsIterator("aaa", "bbb"))
+	ft.createChunk(t, chunkfs.MakeChunkFileName("", 0xBB), &records.WrIterator{records.SrtingsIterator("aaa", "bbb")})
+	ft.createChunk(t, chunkfs.MakeChunkFileName("", 0xAA), &records.WrIterator{records.SrtingsIterator("aaa", "bbb")})
 	fc := ft.newFSChnksController()
 	fc.scan()
 	if len(fc.knwnChunks) != 2 || fc.state != fsCCStateScanned {
@@ -140,7 +141,7 @@ func TestFsGetWriteChunk(t *testing.T) {
 		t.Fatal("expecting c=nil, nw=false, err=nil, but c=", c, ", nw=", nw, ", err=", err)
 	}
 
-	c.Write(context.Background(), records.SrtingsIterator("aaa", "bbb"))
+	c.Write(context.Background(), &records.WrIterator{records.SrtingsIterator("aaa", "bbb")})
 	c.Sync()
 	c1, nw, err := fc.getChunkForWrite(context.Background())
 	if c1 == nil || !nw || err != nil || c == c1 {
@@ -148,7 +149,7 @@ func TestFsGetWriteChunk(t *testing.T) {
 	}
 }
 
-func (ft *fsccTest) createChunk(t *testing.T, cname string, it records.Iterator) {
+func (ft *fsccTest) createChunk(t *testing.T, cname string, it xbinary.WIterator) {
 	cfg := chunkfs.Config{FileName: path.Join(ft.dir, cname), MaxChunkSize: 1024}
 	c, err := chunkfs.New(context.Background(), cfg, ft.fdPool)
 	if err != nil {

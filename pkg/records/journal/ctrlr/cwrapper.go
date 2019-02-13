@@ -17,6 +17,7 @@ package ctrlr
 import (
 	"context"
 	"fmt"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 
 	"github.com/logrange/range/pkg/records"
 	"github.com/logrange/range/pkg/records/chunk"
@@ -51,7 +52,7 @@ func (cw *chunkWrapper) Id() chunk.Id {
 	return cw.chunk.Id()
 }
 
-func (cw *chunkWrapper) Write(ctx context.Context, it records.Iterator) (int, uint32, error) {
+func (cw *chunkWrapper) Write(ctx context.Context, it xbinary.WIterator) (int, uint32, error) {
 	if err := cw.rwLock.RLockWithCtx(ctx); err != nil {
 		return 0, 0, err
 	}

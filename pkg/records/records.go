@@ -22,6 +22,7 @@ package records
 
 import (
 	"context"
+	"io"
 
 	"github.com/logrange/range/pkg/utils/bytes"
 )
@@ -71,4 +72,14 @@ type (
 
 func (r Record) MakeCopy() Record {
 	return Record(bytes.BytesCopy(r))
+}
+
+// WritableSize is a part of bytes.Writable interface.
+func (r Record) WritableSize() int {
+	return len(r)
+}
+
+// WriteTo is a part of bytes.Writable interface
+func (r Record) WriteTo(writer io.Writer) (int, error) {
+	return writer.Write(r)
 }

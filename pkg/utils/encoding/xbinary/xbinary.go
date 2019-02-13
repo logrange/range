@@ -178,8 +178,8 @@ const (
 	bit63 = 1 << 63
 )
 
-// SizeUint returns size of encoded uint64 size
-func SizeUint(v uint64) int {
+// WritableUintSize returns size of encoded uint64 size
+func WritableUintSize(v uint64) int {
 	if v >= bit35 {
 		if v >= bit49 {
 			if v >= bit63 {
@@ -261,9 +261,9 @@ func UnmarshalBytes(buf []byte, newBuf bool) (int, []byte, error) {
 	return idx + ln, res, nil
 }
 
-// SizeBytes returns size of encoded buf
-func SizeBytes(buf []byte) int {
-	return SizeUint(uint64(len(buf))) + len(buf)
+// WritebleBytesSize returns size of encoded buf
+func WritebleBytesSize(buf []byte) int {
+	return WritableUintSize(uint64(len(buf))) + len(buf)
 }
 
 // MarshalString writes value v to the buf. Returns number of bytes written or an error, if any
@@ -285,9 +285,9 @@ func UnmarshalString(buf []byte, newBuf bool) (int, string, error) {
 	return idx, "", err
 }
 
-// SizeString returns size of encoded v
-func SizeString(v string) int {
-	return SizeBytes(bytes.StringToByteArray(v))
+// WritableStringSize returns size of encoded v
+func WritableStringSize(v string) int {
+	return WritebleBytesSize(bytes.StringToByteArray(v))
 }
 
 func noBufErr(src string, ln, req int) error {

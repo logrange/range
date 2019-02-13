@@ -166,8 +166,8 @@ func TestSizeUint(t *testing.T) {
 }
 
 func testSizeUint(t *testing.T, val uint64, sz int) {
-	if SizeUint(val) != sz || SizeUint(val-1) != sz-1 {
-		t.Fatal("for ", val, " expecting size ", sz, ", but it is ", SizeUint(val))
+	if WritableUintSize(val) != sz || WritableUintSize(val-1) != sz-1 {
+		t.Fatal("for ", val, " expecting size ", sz, ", but it is ", WritableUintSize(val))
 	}
 
 	var b [20]byte

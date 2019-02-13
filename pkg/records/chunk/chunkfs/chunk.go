@@ -17,6 +17,7 @@ package chunkfs
 import (
 	"context"
 	"fmt"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"os"
 	"path"
 	"strconv"
@@ -26,7 +27,6 @@ import (
 	"time"
 
 	"github.com/jrivets/log4g"
-	"github.com/logrange/range/pkg/records"
 	"github.com/logrange/range/pkg/records/chunk"
 	"github.com/logrange/range/pkg/utils/errors"
 	"github.com/logrange/range/pkg/utils/fileutil"
@@ -417,7 +417,7 @@ func (c *Chunk) Iterator() (chunk.Iterator, error) {
 }
 
 // Write allows to write records to the chunk.
-func (c *Chunk) Write(ctx context.Context, it records.Iterator) (int, uint32, error) {
+func (c *Chunk) Write(ctx context.Context, it xbinary.WIterator) (int, uint32, error) {
 	return c.w.write(ctx, it)
 }
 

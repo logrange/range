@@ -18,13 +18,13 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/jrivets/log4g"
-	"github.com/logrange/range/pkg/records"
 	"github.com/logrange/range/pkg/utils/errors"
 	"github.com/logrange/range/pkg/utils/fileutil"
 )
@@ -209,7 +209,7 @@ func (cw *cWrtier) isFlushNeeded() bool {
 //
 // the write procedure happens in the context of ctx. Which is used for getting
 // records from the iterator.
-func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32, error) {
+func (cw *cWrtier) write(ctx context.Context, it xbinary.WIterator) (int, uint32, error) {
 	cw.lock.Lock()
 	defer cw.lock.Unlock()
 
@@ -229,7 +229,7 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 	// checking the closed flag holding cw.lock, allows us to detect Close()
 	// call and give up before we iterated completely over the iterator
 	for atomic.LoadInt32(&cw.closed) == 0 {
-		var rec records.Record
+		var rec xbinary.Writable
 		rec, err = it.Get(ctx)
 		if err != nil {
 			if err == io.EOF {
@@ -241,8 +241,8 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 		offs := uint64(cw.w.size())
 
 		// writing the record size -> data chunk
-		binary.BigEndian.PutUint32(cw.rhBuf, uint32(len(rec)))
-		_, err = cw.w.write(cw.rhBuf)
+		binary.BigEndian.PutUint32(cw.rhBuf, uint32(rec.WritableSize()))
+		_, err = cw.w.writeBuf(cw.rhBuf)
 		if err != nil {
 			// close chunk (unrecoverable error)
 			cw.logger.Error("Could not write record size to the data chunk. err=", err)
@@ -261,7 +261,7 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 
 		// writing the record offset -> index
 		binary.BigEndian.PutUint64(cw.offsBuf, offs)
-		_, err = cw.iw.write(cw.offsBuf)
+		_, err = cw.iw.writeBuf(cw.offsBuf)
 		if err != nil {
 			// close chunk (unrecoverable error)
 			cw.logger.Error("Could not write record offset to the index. err=", err)
