@@ -1,6 +1,7 @@
 package xbinary
 
 import (
+	"bytes"
 	"testing"
 )
 
@@ -10,7 +11,8 @@ func BenchmarkMarshalUint(b *testing.B) {
 	ui := uint(1347598723405981734)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		MarshalUInt(ui, buf)
+		sz, _ := MarshalUint(ui, buf)
+		copy(bb[10:], bb[:sz])
 	}
 }
 
@@ -31,6 +33,31 @@ func BenchmarkMarshalBytes(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		MarshalBytes(bbb, buf)
+	}
+}
+
+func BenchmarkWriteBytes(b *testing.B) {
+	var bb [30]byte
+	buf := bb[:]
+	bbb := []byte("test string")
+	btb := bytes.NewBuffer(buf)
+	ow := ObjectsWriter{Writer: btb}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		btb.Reset()
+		ow.WriteBytes(bbb)
+	}
+}
+
+func BenchmarkWriteUInt(b *testing.B) {
+	var bb [30]byte
+	buf := bb[:]
+	btb := bytes.NewBuffer(buf)
+	ow := ObjectsWriter{Writer: btb}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		btb.Reset()
+		ow.WriteUint(1234719238471923749)
 	}
 }
 
@@ -59,37 +86,37 @@ func BenchmarkUnmarshalBytesNoCopy(b *testing.B) {
 func TestMarshalUInt(t *testing.T) {
 	var b [3]byte
 	buf := b[:]
-	idx, err := MarshalUInt(0, buf)
+	idx, err := MarshalUint(0, buf)
 	if idx != 1 || buf[0] != 0 || err != nil {
 		t.Fatal("Unexpected idx=", idx, " buf=", buf, ", err=", err)
 	}
 
-	idx, err = MarshalUInt(25, buf)
+	idx, err = MarshalUint(25, buf)
 	if idx != 1 || buf[0] != 25 || err != nil {
 		t.Fatal("Unexpected idx=", idx, " buf=", buf, ", err=", err)
 	}
 
-	idx, v, err := UnmarshalUInt(buf)
+	idx, v, err := UnmarshalUint(buf)
 	if v != 25 || idx != 1 || err != nil {
 		t.Fatal("Unexpected idx=", idx, " v=", v, ", err=", err)
 	}
 
-	idx, err = MarshalUInt(129, buf)
+	idx, err = MarshalUint(129, buf)
 	if idx != 2 || buf[0] != 129 || buf[1] != 1 || err != nil {
 		t.Fatal("Unexpected idx=", idx, " buf=", buf, ", err=", err)
 	}
 
-	idx, err = MarshalUInt(32565, buf)
+	idx, err = MarshalUint(32565, buf)
 	if idx != 3 || err != nil {
 		t.Fatal("Unexpected idx=", idx, " buf=", buf, ", err=", err)
 	}
 
-	idx, v, err = UnmarshalUInt(buf)
+	idx, v, err = UnmarshalUint(buf)
 	if v != 32565 || idx != 3 || err != nil {
 		t.Fatal("Unexpected idx=", idx, " v=", v, ", err=", err)
 	}
 
-	idx, err = MarshalUInt(3256512341234, buf)
+	idx, err = MarshalUint(3256512341234, buf)
 	if err == nil {
 		t.Fatal("Expecting err != nil, but idx=", idx, " buf=", buf)
 	}
@@ -172,12 +199,12 @@ func testSizeUint(t *testing.T, val uint64, sz int) {
 
 	var b [20]byte
 	buf := b[:]
-	idx, _ := MarshalUInt(uint(val), buf)
+	idx, _ := MarshalUint(uint(val), buf)
 	if idx != sz {
 		t.Fatal("MarshalUInt returns another value for val=", val, " idx=", idx, ", but sz=", sz)
 	}
 
-	idx, _ = MarshalUInt(uint(val-1), buf)
+	idx, _ = MarshalUint(uint(val-1), buf)
 	if idx != sz-1 {
 		t.Fatal("MarshalUInt returns another value for val=", val, " idx=", idx, ", but sz=", sz-1)
 	}

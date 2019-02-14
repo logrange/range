@@ -24,14 +24,6 @@ import (
 )
 
 type (
-	//// Encodable is an interface which must be implemented by user packets, which is sent over the wires.
-	//Encodable interface {
-	//	// EncodedSize returns number of bytes the message needs to be encoded as a []byte
-	//	EncodedSize() int
-	//	// Encode
-	//	Encode(writer io.Writer) error
-	//}
-
 	// Client allows to make remote calls to the server
 	Client interface {
 		io.Closer

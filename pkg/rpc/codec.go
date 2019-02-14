@@ -26,6 +26,7 @@ type (
 	clntIOCodec struct {
 		rwc  io.ReadWriteCloser
 		wrtr *bufio.Writer
+		ow   *xbinary.ObjectsWriter
 		hbuf [10]byte
 	}
 
@@ -33,6 +34,7 @@ type (
 		id   string
 		rwc  io.ReadWriteCloser
 		wrtr *bufio.Writer
+		ow   *xbinary.ObjectsWriter
 		hbuf [10]byte
 	}
 )
@@ -41,6 +43,7 @@ func newClntIOCodec(rwc io.ReadWriteCloser) *clntIOCodec {
 	cc := new(clntIOCodec)
 	cc.rwc = rwc
 	cc.wrtr = bufio.NewWriter(rwc)
+	cc.ow = &xbinary.ObjectsWriter{Writer: cc.wrtr}
 	return cc
 }
 
@@ -50,23 +53,23 @@ func (cc *clntIOCodec) Close() error {
 }
 
 func (cc *clntIOCodec) writeRequest(reqId int32, funcId int16, msg xbinary.Writable) error {
-	err := binary.Write(cc.wrtr, binary.BigEndian, reqId)
+	_, err := cc.ow.WriteUint32(uint32(reqId))
 	if err != nil {
 		return err
 	}
 
-	err = binary.Write(cc.wrtr, binary.BigEndian, funcId)
+	_, err = cc.ow.WriteUint16(uint16(funcId))
 	if err != nil {
 		return err
 	}
 
 	sz := int32(msg.WritableSize())
-	err = binary.Write(cc.wrtr, binary.BigEndian, sz)
+	_, err = cc.ow.WriteUint32(uint32(sz))
 	if err != nil {
 		return err
 	}
 
-	_, err = msg.WriteTo(cc.wrtr)
+	_, err = msg.WriteTo(cc.ow)
 
 	cc.wrtr.Flush()
 	return err
@@ -105,6 +108,7 @@ func newSrvIOCodec(id string, rwc io.ReadWriteCloser) *srvIOCodec {
 	sc.id = id
 	sc.rwc = rwc
 	sc.wrtr = bufio.NewWriter(rwc)
+	sc.ow = &xbinary.ObjectsWriter{Writer: sc.wrtr}
 	return sc
 }
 
@@ -131,7 +135,7 @@ func (sc *srvIOCodec) readRequestBody(body []byte) error {
 }
 
 func (sc *srvIOCodec) writeResponse(reqId int32, opErr error, msg xbinary.Writable) error {
-	err := binary.Write(sc.wrtr, binary.BigEndian, reqId)
+	_, err := sc.ow.WriteUint32(uint32(reqId))
 	if err != nil {
 		return err
 	}
@@ -141,31 +145,29 @@ func (sc *srvIOCodec) writeResponse(reqId int32, opErr error, msg xbinary.Writab
 		errCode = int16(1)
 	}
 
-	err = binary.Write(sc.wrtr, binary.BigEndian, errCode)
+	_, err = sc.ow.WriteUint16(uint16(errCode))
 	if err != nil {
 		return err
 	}
 
 	if errCode != 0 {
 		buf := bytes.StringToByteArray(opErr.Error())
-		sz := int32(len(buf))
-		err = binary.Write(sc.wrtr, binary.BigEndian, sz)
+		_, err = sc.ow.WriteUint32(uint32(len(buf)))
 		if err != nil {
 			return err
 		}
 
-		err = binary.Write(sc.wrtr, binary.BigEndian, buf)
+		_, err = sc.ow.WriteBytes(buf)
 		sc.wrtr.Flush()
 		return err
 	}
 
-	sz := int32(msg.WritableSize())
-	err = binary.Write(sc.wrtr, binary.BigEndian, sz)
+	_, err = sc.ow.WriteUint32(uint32(msg.WritableSize()))
 	if err != nil {
 		return err
 	}
 
-	_, err = msg.WriteTo(sc.wrtr)
+	_, err = msg.WriteTo(sc.ow)
 	sc.wrtr.Flush()
 	return err
 }

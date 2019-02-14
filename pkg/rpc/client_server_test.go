@@ -16,10 +16,9 @@ package rpc
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"github.com/logrange/range/pkg/utils/errors"
-	"io"
 	"net"
 	"reflect"
 	"testing"
@@ -32,8 +31,8 @@ func (ep echoPacket) WritableSize() int {
 	return len(ep)
 }
 
-func (ep echoPacket) WriteTo(writer io.Writer) error {
-	return binary.Write(writer, binary.BigEndian, ep)
+func (ep echoPacket) WriteTo(ow *xbinary.ObjectsWriter) (int, error) {
+	return ow.WriteBytes(ep)
 }
 
 func echo(reqId int32, reqBody []byte, sc *ServerConn) {

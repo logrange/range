@@ -28,6 +28,7 @@ type (
 		fd    *os.File
 		fdPos int64
 		bw    *bufio.Writer
+		ow    *xbinary.ObjectsWriter
 	}
 )
 
@@ -43,10 +44,12 @@ func newFWriter(file string, bufSize int) (*fWriter, error) {
 		return nil, err
 	}
 
+	bw := bufio.NewWriterSize(f, bufSize)
 	return &fWriter{
 		fd:    f,
 		fdPos: offset,
-		bw:    bufio.NewWriterSize(f, bufSize),
+		bw:    bw,
+		ow:    &xbinary.ObjectsWriter{Writer: bw},
 	}, nil
 }
 
@@ -69,7 +72,7 @@ func (w *fWriter) writeBuf(data []byte) (int64, error) {
 		return -1, errors.ClosedState
 	}
 	offset := w.fdPos
-	nn, err := w.bw.Write(data)
+	nn, err := w.ow.WriteBytes(data)
 	w.fdPos += int64(nn)
 	return offset, err
 }
@@ -81,7 +84,7 @@ func (w *fWriter) write(wrtbl xbinary.Writable) (int64, error) {
 	}
 	offset := w.fdPos
 
-	nn, err := wrtbl.WriteTo(w.bw)
+	nn, err := wrtbl.WriteTo(w.ow)
 	w.fdPos += int64(nn)
 	return offset, err
 }

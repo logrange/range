@@ -16,7 +16,6 @@ package xbinary
 
 import (
 	"context"
-	"io"
 )
 
 type (
@@ -30,7 +29,7 @@ type (
 		// WriteTo allows to write (marshal) the object into the writer. If no
 		// error happens, the function will write number of bytes returned by the WritableSize() function
 		// it returns number of bytes written and an error, if any
-		WriteTo(writer io.Writer) (int, error)
+		WriteTo(writer *ObjectsWriter) (int, error)
 	}
 
 	// WIterator interface allows to iterate over a collection of Writable objects

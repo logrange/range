@@ -21,6 +21,54 @@ import (
 	"io"
 )
 
+type ObjectsWriter struct {
+	Writer io.Writer
+	buf    [10]byte
+}
+
+// WriteByte writes value v to the writer. It returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WriteByte(v byte) (int, error) {
+	ow.buf[0] = v
+	return ow.Writer.Write(ow.buf[:1])
+}
+
+// WriteUint16 writes value v to the writer. It returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WriteUint16(v uint16) (int, error) {
+	buf := ow.buf[:2]
+	binary.BigEndian.PutUint16(buf, v)
+	return ow.Writer.Write(buf)
+}
+
+// WriteUint32 writes value v to the writer. It returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WriteUint32(v uint32) (int, error) {
+	buf := ow.buf[:4]
+	binary.BigEndian.PutUint32(buf, v)
+	return ow.Writer.Write(buf)
+}
+
+// WriteUint64 writes value v to the writer. It returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WriteUint64(v uint64) (int, error) {
+	buf := ow.buf[:4]
+	binary.BigEndian.PutUint64(buf, v)
+	return ow.Writer.Write(buf)
+}
+
+// WriteUint writes value v to the writer with the variable size. It returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WriteUint(v uint) (int, error) {
+	sz, _ := MarshalUint(v, ow.buf[:])
+	return ow.Writer.Write(ow.buf[:sz])
+}
+
+// WriteBytes writes value v to the writer. It returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WriteBytes(v []byte) (int, error) {
+	return ow.Writer.Write(v)
+}
+
+// WriteString writes value v to writer w. It returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WriteString(v string) (int, error) {
+	return ow.WriteBytes(bytes.StringToByteArray(v))
+}
+
 // MarshalByte writes value v to the buf. Returns number of bytes written or an error, if any
 func MarshalByte(v byte, buf []byte) (int, error) {
 	if len(buf) < 1 {
@@ -28,13 +76,6 @@ func MarshalByte(v byte, buf []byte) (int, error) {
 	}
 	buf[0] = v
 	return 1, nil
-}
-
-// WriteByte writes value v to writer w. It returns number of bytes written or an error if any.
-func WriteByte(v byte, w io.Writer) (int, error) {
-	var b [1]byte
-	b[0] = v
-	return w.Write(b[:])
 }
 
 // UnmarshalByte reads next byte value from the buf. Retruns number of bytes read, the value or an error, if any.
@@ -54,13 +95,6 @@ func MarshalUint16(v uint16, buf []byte) (int, error) {
 	return 2, nil
 }
 
-// WriteUint16 writes value v to writer w. It returns number of bytes written or an error if any.
-func WriteUint16(v uint16, w io.Writer) (int, error) {
-	var b [2]byte
-	binary.BigEndian.PutUint16(b[:], v)
-	return w.Write(b[:])
-}
-
 // UnmarshalUint16 reads next uint16 value from the buf. Retruns number of bytes read, the value or an error, if any.
 func UnmarshalUint16(buf []byte) (int, uint16, error) {
 	if len(buf) < 2 {
@@ -76,13 +110,6 @@ func MarshalUint32(v uint32, buf []byte) (int, error) {
 	}
 	binary.BigEndian.PutUint32(buf, v)
 	return 4, nil
-}
-
-// WriteUint32 writes value v to writer w. It returns number of bytes written or an error if any.
-func WriteUint32(v uint32, w io.Writer) (int, error) {
-	var b [4]byte
-	binary.BigEndian.PutUint32(b[:], v)
-	return w.Write(b[:])
 }
 
 // UnmarshalUint32 reads next uint32 value from the buf. Retruns number of bytes read, the value or an error, if any.
@@ -102,13 +129,6 @@ func MarshalInt64(v int64, buf []byte) (int, error) {
 	return 8, nil
 }
 
-// WriteInt64 writes value v to writer w. It returns number of bytes written or an error if any.
-func WriteInt64(v int64, w io.Writer) (int, error) {
-	var b [8]byte
-	binary.BigEndian.PutUint64(b[:], uint64(v))
-	return w.Write(b[:])
-}
-
 // UnmarshalInt64 reads next int64 value from the buf. Retruns number of bytes read, the value or an error, if any.
 func UnmarshalInt64(buf []byte) (int, int64, error) {
 	if len(buf) < 8 {
@@ -117,8 +137,8 @@ func UnmarshalInt64(buf []byte) (int, int64, error) {
 	return 8, int64(binary.BigEndian.Uint64(buf)), nil
 }
 
-// MarshalUInt writes value v to the buf. Returns number of bytes written or an error, if any
-func MarshalUInt(v uint, buf []byte) (int, error) {
+// MarshalUint writes value v to the buf. Returns number of bytes written or an error, if any
+func MarshalUint(v uint, buf []byte) (int, error) {
 	idx := 0
 	for {
 		if idx == len(buf) {
@@ -136,18 +156,8 @@ func MarshalUInt(v uint, buf []byte) (int, error) {
 	}
 }
 
-// WriteUInt writes value v to writer w. It returns number of bytes written or an error if any.
-func WriteUInt(v uint, w io.Writer) (int, error) {
-	var b [10]byte
-	sz, err := MarshalUInt(v, b[:])
-	if err != nil {
-		return 0, err
-	}
-	return w.Write(b[:sz])
-}
-
-// UnmarshalUInt reads next uint value from the buf. It retruns number of bytes read, the value or an error, if any.
-func UnmarshalUInt(buf []byte) (int, uint, error) {
+// UnmarshalUint reads next uint value from the buf. It retruns number of bytes read, the value or an error, if any.
+func UnmarshalUint(buf []byte) (int, uint, error) {
 	res := uint(0)
 	idx := 0
 	shft := uint(0)
@@ -217,7 +227,7 @@ func WritableUintSize(v uint64) int {
 func MarshalBytes(v []byte, buf []byte) (int, error) {
 	ln := len(v)
 
-	idx, err := MarshalUInt(uint(ln), buf)
+	idx, err := MarshalUint(uint(ln), buf)
 	if err != nil {
 		return 0, err
 	}
@@ -231,20 +241,9 @@ func MarshalBytes(v []byte, buf []byte) (int, error) {
 	return ln + idx, nil
 }
 
-// WriteBytes writes value v to writer w. It returns number of bytes written or an error if any.
-func WriteBytes(v []byte, w io.Writer) (int, error) {
-	n, err := WriteUInt(uint(len(v)), w)
-	if err != nil {
-		return n, err
-	}
-
-	n2, err := w.Write(v)
-	return n2 + n, err
-}
-
 // UnmarshalBytes reads next []byte value from the buf. It retruns number of bytes read, the value or an error, if any.
 func UnmarshalBytes(buf []byte, newBuf bool) (int, []byte, error) {
-	idx, uln, err := UnmarshalUInt(buf)
+	idx, uln, err := UnmarshalUint(buf)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -269,11 +268,6 @@ func WritebleBytesSize(buf []byte) int {
 // MarshalString writes value v to the buf. Returns number of bytes written or an error, if any
 func MarshalString(v string, buf []byte) (int, error) {
 	return MarshalBytes(bytes.StringToByteArray(v), buf)
-}
-
-// WriteString writes value v to writer w. It returns number of bytes written or an error if any.
-func WriteString(v string, w io.Writer) (int, error) {
-	return WriteBytes(bytes.StringToByteArray(v), w)
 }
 
 // UnmarshalString reads next string value from the buf. It retruns number of bytes read, the value or an error, if any.

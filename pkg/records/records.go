@@ -22,9 +22,8 @@ package records
 
 import (
 	"context"
-	"io"
-
 	"github.com/logrange/range/pkg/utils/bytes"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 )
 
 type (
@@ -80,6 +79,6 @@ func (r Record) WritableSize() int {
 }
 
 // WriteTo is a part of bytes.Writable interface
-func (r Record) WriteTo(writer io.Writer) (int, error) {
-	return writer.Write(r)
+func (r Record) WriteTo(ow *xbinary.ObjectsWriter) (int, error) {
+	return ow.WriteBytes(r)
 }

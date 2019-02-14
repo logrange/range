@@ -15,8 +15,8 @@
 package rpc
 
 import (
-	"encoding/binary"
 	"fmt"
+	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"io"
 	"reflect"
 	"testing"
@@ -61,8 +61,8 @@ func (tm testMsg) WritableSize() int {
 	return len(tm)
 }
 
-func (tm testMsg) WriteTo(writer io.Writer) error {
-	return binary.Write(writer, binary.BigEndian, tm)
+func (tm testMsg) WriteTo(ow *xbinary.ObjectsWriter) (int, error) {
+	return ow.WriteBytes(tm)
 }
 
 func TestClWriteCodec(t *testing.T) {
