@@ -14,10 +14,6 @@
 
 package xbinary
 
-import (
-	"context"
-)
-
 type (
 	// Writable interface is implemented by objects that could be written into io.Writer. The objects that
 	// support the interface must provide the size of the object in binary form and the function for
@@ -30,33 +26,5 @@ type (
 		// error happens, the function will write number of bytes returned by the WritableSize() function
 		// it returns number of bytes written and an error, if any
 		WriteTo(writer *ObjectsWriter) (int, error)
-	}
-
-	// WIterator interface allows to iterate over a collection of Writable objects
-	WIterator interface {
-		// Next moves the iterator current position to the next Writable object. Implementation
-		// must define the order and which record should be the next.
-		//
-		// Next expects ctx to be used in case of the call is going to be blocked
-		// some implementations can ignore this parameter if the the
-		// operation can be perform without blocking the context.
-		//
-		// For some implementations, calling the function makes the result, returned
-		// by previous call of Get() not relevant. It means, that NO results,
-		// that were previously received by calling Get(), must be used after
-		// the Next() call. In case of if the result is needed it must be copied
-		// to another record before calling the Next() function.
-		Next(ctx context.Context)
-
-		// Get returns the current Writable object the iterator points to. If there is
-		// no current object (all ones are iterated), or the collection is empty
-		// the method will return io.EOF as the error.
-		//
-		// Get receives ctx to be used in case of the call is going to be blocked.
-		// Some implementations can ignore this parameter if the the
-		// operation can be perform without blocking the context.
-		//
-		// If error is nil, then the method returns current Writable object.
-		Get(ctx context.Context) (Writable, error)
 	}
 )

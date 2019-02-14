@@ -241,9 +241,8 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 		offs := uint64(cw.w.size())
 
 		// writing the record size -> data chunk
-		//binary.BigEndian.PutUint32(cw.rhBuf, uint32(rec.WritableSize()))
 		binary.BigEndian.PutUint32(cw.rhBuf, uint32(len(rec)))
-		_, err = cw.w.writeBuf(cw.rhBuf)
+		_, err = cw.w.write(cw.rhBuf)
 		if err != nil {
 			// close chunk (unrecoverable error)
 			cw.logger.Error("Could not write record size to the data chunk. err=", err)
@@ -252,8 +251,7 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 		}
 
 		// writing the record payload -> data chunk
-		// _, err = cw.w.writeBuf(rec)
-		_, err = cw.w.writeBuf(rec)
+		_, err = cw.w.write(rec)
 		if err != nil {
 			// close chunk (unrecoverable error)
 			cw.logger.Error("Could not write a record payload. err=", err)
@@ -263,7 +261,7 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 
 		// writing the record offset -> index
 		binary.BigEndian.PutUint64(cw.offsBuf, offs)
-		_, err = cw.iw.writeBuf(cw.offsBuf)
+		_, err = cw.iw.write(cw.offsBuf)
 		if err != nil {
 			// close chunk (unrecoverable error)
 			cw.logger.Error("Could not write record offset to the index. err=", err)

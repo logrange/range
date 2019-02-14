@@ -18,7 +18,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
-	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"io"
 
 	"github.com/logrange/range/pkg/records"
@@ -48,7 +47,7 @@ type (
 
 		// Write - writes records received from the iterator to the journal.
 		// It returns number of records written, next record write position and an error if any
-		Write(ctx context.Context, rit xbinary.WIterator) (int, Pos, error)
+		Write(ctx context.Context, rit records.Iterator) (int, Pos, error)
 
 		// Size returns the summarized chunks size
 		Size() int64

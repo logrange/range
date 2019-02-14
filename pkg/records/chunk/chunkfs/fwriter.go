@@ -66,25 +66,13 @@ func (w *fWriter) size() int64 {
 	return w.fdPos
 }
 
-// writeBuf - writes data into the buffer and returns position BEFORE the write
-func (w *fWriter) writeBuf(data []byte) (int64, error) {
+// write - writes data into the buffer and returns position BEFORE the write
+func (w *fWriter) write(data []byte) (int64, error) {
 	if w.bw == nil {
 		return -1, errors.ClosedState
 	}
 	offset := w.fdPos
 	nn, err := w.ow.WriteBytes(data)
-	w.fdPos += int64(nn)
-	return offset, err
-}
-
-// write - writes wrtbl into the buffer and returns position BEFORE the write
-func (w *fWriter) write(wrtbl xbinary.Writable) (int64, error) {
-	if w.bw == nil {
-		return -1, errors.ClosedState
-	}
-	offset := w.fdPos
-
-	nn, err := wrtbl.WriteTo(w.ow)
 	w.fdPos += int64(nn)
 	return offset, err
 }

@@ -17,7 +17,7 @@ package journal
 import (
 	"context"
 	"fmt"
-	"github.com/logrange/range/pkg/utils/encoding/xbinary"
+	"github.com/logrange/range/pkg/records"
 	"sort"
 
 	"github.com/jrivets/log4g"
@@ -67,7 +67,7 @@ func (j *journal) Name() string {
 }
 
 // Write - writes records received from the iterator to the journal.
-func (j *journal) Write(ctx context.Context, rit xbinary.WIterator) (int, Pos, error) {
+func (j *journal) Write(ctx context.Context, rit records.Iterator) (int, Pos, error) {
 	var err error
 	for _, err = rit.Get(ctx); err == nil; {
 		c, err := j.cc.GetChunkForWrite(ctx)
