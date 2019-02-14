@@ -57,7 +57,7 @@ func TestCIteratorCommon(t *testing.T) {
 	ci.Next(context.Background())
 
 	si := records.SrtingsIterator("aa")
-	_, _, err = cw.write(nil, &records.WrIterator{si})
+	_, _, err = cw.write(nil, si)
 	if err != nil {
 		t.Fatal("could not write data to file ", fn, ", err=", err)
 	}
@@ -95,7 +95,7 @@ func TestCIteratorCommon(t *testing.T) {
 	}
 
 	si = records.SrtingsIterator("bb")
-	_, _, err = cw.write(nil, &records.WrIterator{si})
+	_, _, err = cw.write(nil, si)
 	if err != nil {
 		t.Fatal("could not write data to file ", fn, ", err=", err)
 	}
@@ -158,7 +158,7 @@ func TestCIteratorPos(t *testing.T) {
 	ci := newCIterator(123, p, &cw.cntCfrmd, buf)
 
 	si := records.SrtingsIterator("aa")
-	_, _, err = cw.write(nil, &records.WrIterator{si})
+	_, _, err = cw.write(nil, si)
 	if err != nil {
 		t.Fatal("could not write data to file ", fn, ", err=", err)
 	}
@@ -189,7 +189,7 @@ func TestCIteratorPos(t *testing.T) {
 	}
 
 	si = records.SrtingsIterator("bb")
-	_, _, err = cw.write(nil, &records.WrIterator{si})
+	_, _, err = cw.write(nil, si)
 	if err != nil {
 		t.Fatal("could not write data to file ", fn, ", err=", err)
 	}
@@ -231,7 +231,7 @@ func TestCIteratorBackAndForth(t *testing.T) {
 	ci := newCIterator(123, p, &cw.cntCfrmd, buf)
 
 	si := records.SrtingsIterator("aa", "bb")
-	_, _, err = cw.write(nil, &records.WrIterator{si})
+	_, _, err = cw.write(nil, si)
 	if err != nil {
 		t.Fatal("could not write data to file ", fn, ", err=", err)
 	}
@@ -306,7 +306,7 @@ func TestCIteratorEmpty(t *testing.T) {
 	}
 
 	si := records.SrtingsIterator("aa", "bb")
-	_, _, err = cw.write(nil, &records.WrIterator{si})
+	_, _, err = cw.write(nil, si)
 	if err != nil {
 		t.Fatal("could not write data to file ", fn, ", err=", err)
 	}

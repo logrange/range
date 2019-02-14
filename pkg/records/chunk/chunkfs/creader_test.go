@@ -36,7 +36,7 @@ func TestCReaderReadByRecords(t *testing.T) {
 	defer cw.Close()
 
 	si := records.SrtingsIterator("aa", "b")
-	_, _, err = cw.write(nil, &records.WrIterator{si})
+	_, _, err = cw.write(nil, si)
 	if err != nil {
 		t.Fatal("could not write data to file ", fn, ", err=", err)
 	}
@@ -86,7 +86,7 @@ func TestCReaderReadByRecords(t *testing.T) {
 
 	// now read after write...
 	si = records.SrtingsIterator("cc")
-	_, _, err = cw.write(nil, &records.WrIterator{si})
+	_, _, err = cw.write(nil, si)
 	if err != nil {
 		t.Fatal("could not write data to file ", fn, ", err=", err)
 	}
@@ -100,7 +100,7 @@ func TestCReaderReadByRecords(t *testing.T) {
 	// setPos far away and then read
 	cr.setPos(10)
 	si = records.SrtingsIterator("c1")
-	_, _, err = cw.write(nil, &records.WrIterator{si})
+	_, _, err = cw.write(nil, si)
 	if err != nil {
 		t.Fatal("could not write data to file ", fn, ", err=", err)
 	}

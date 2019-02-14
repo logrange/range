@@ -16,7 +16,6 @@ package chunkfs
 
 import (
 	"context"
-	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"io"
 	"io/ioutil"
 	"os"
@@ -39,7 +38,7 @@ func (li *lazyIt) Next(ctx context.Context) {
 	li.limit--
 }
 
-func (li *lazyIt) Get(ctx context.Context) (xbinary.Writable, error) {
+func (li *lazyIt) Get(ctx context.Context) (records.Record, error) {
 	if li.limit <= 0 {
 		return nil, io.EOF
 	}
@@ -67,7 +66,7 @@ func TestCWriterWrite(t *testing.T) {
 		t.Fatal("Should not be flush needed")
 	}
 
-	si := &records.WrIterator{records.SrtingsIterator("a")}
+	si := records.SrtingsIterator("a")
 	n, cnt, err := cw.write(nil, si)
 	if n != 1 || cnt != 1 || err != nil || atomic.LoadInt32(&flushes) != 0 {
 		t.Fatal("Expecting n=1, offs=1, err=nil, but n=", n, ", offs=", cnt, ", err=", err)
@@ -79,7 +78,7 @@ func TestCWriterWrite(t *testing.T) {
 		t.Fatal("expecting lro=1, but it is ", cw.cnt, "flushes=", flushes)
 	}
 
-	si = &records.WrIterator{records.SrtingsIterator("a", "b", "c")}
+	si = records.SrtingsIterator("a", "b", "c")
 	n, cnt, err = cw.write(nil, si)
 	if !cw.isFlushNeeded() {
 		t.Fatal("expecting flush is needed")
@@ -110,7 +109,7 @@ func TestCWriterIdleTimeout(t *testing.T) {
 	cw.idleTO = 50
 	cw.flushTO = 10
 
-	si := &records.WrIterator{records.SrtingsIterator("a")}
+	si := records.SrtingsIterator("a")
 	cw.write(nil, si)
 	time.Sleep(70 * time.Millisecond)
 	if cw.w != nil {
@@ -153,13 +152,13 @@ func TestCWriterMaxSize(t *testing.T) {
 	cw := newCWriter(path.Join(dir, "tst"), 0, 1, 0)
 	defer cw.Close()
 
-	si := &records.WrIterator{records.SrtingsIterator("a", "b", "c")}
+	si := records.SrtingsIterator("a", "b", "c")
 	n, cnt, err := cw.write(nil, si)
 	if n != 3 || cnt != 3 || err != nil {
 		t.Fatal("Expecting n=3, cnt=3, err=nil, but n=", n, ", cnt=", cnt, ", err=", err)
 	}
 
-	si = &records.WrIterator{records.SrtingsIterator("a", "b", "c")}
+	si = records.SrtingsIterator("a", "b", "c")
 	_, _, err = cw.write(nil, si)
 	if err != errors.MaxSizeReached {
 		t.Fatal("Must report ErrMaxSizeReached")

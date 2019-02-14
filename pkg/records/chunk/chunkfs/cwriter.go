@@ -18,7 +18,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/logrange/range/pkg/utils/encoding/xbinary"
+	"github.com/logrange/range/pkg/records"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -209,7 +209,7 @@ func (cw *cWrtier) isFlushNeeded() bool {
 //
 // the write procedure happens in the context of ctx. Which is used for getting
 // records from the iterator.
-func (cw *cWrtier) write(ctx context.Context, it xbinary.WIterator) (int, uint32, error) {
+func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32, error) {
 	cw.lock.Lock()
 	defer cw.lock.Unlock()
 
@@ -229,7 +229,7 @@ func (cw *cWrtier) write(ctx context.Context, it xbinary.WIterator) (int, uint32
 	// checking the closed flag holding cw.lock, allows us to detect Close()
 	// call and give up before we iterated completely over the iterator
 	for atomic.LoadInt32(&cw.closed) == 0 {
-		var rec xbinary.Writable
+		var rec records.Record
 		rec, err = it.Get(ctx)
 		if err != nil {
 			if err == io.EOF {
@@ -241,7 +241,8 @@ func (cw *cWrtier) write(ctx context.Context, it xbinary.WIterator) (int, uint32
 		offs := uint64(cw.w.size())
 
 		// writing the record size -> data chunk
-		binary.BigEndian.PutUint32(cw.rhBuf, uint32(rec.WritableSize()))
+		//binary.BigEndian.PutUint32(cw.rhBuf, uint32(rec.WritableSize()))
+		binary.BigEndian.PutUint32(cw.rhBuf, uint32(len(rec)))
 		_, err = cw.w.writeBuf(cw.rhBuf)
 		if err != nil {
 			// close chunk (unrecoverable error)
@@ -251,7 +252,8 @@ func (cw *cWrtier) write(ctx context.Context, it xbinary.WIterator) (int, uint32
 		}
 
 		// writing the record payload -> data chunk
-		_, err = cw.w.write(rec)
+		// _, err = cw.w.writeBuf(rec)
+		_, err = cw.w.writeBuf(rec)
 		if err != nil {
 			// close chunk (unrecoverable error)
 			cw.logger.Error("Could not write a record payload. err=", err)

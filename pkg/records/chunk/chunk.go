@@ -17,7 +17,6 @@ package chunk
 import (
 	"context"
 	"fmt"
-	"github.com/logrange/range/pkg/utils/encoding/xbinary"
 	"io"
 	"strconv"
 	"sync/atomic"
@@ -63,7 +62,7 @@ type (
 		// 3. an error if any:
 		// 		ErrMaxSizeReached - when the write cannot be done because of
 		//				the size limits
-		Write(ctx context.Context, it xbinary.WIterator) (int, uint32, error)
+		Write(ctx context.Context, it records.Iterator) (int, uint32, error)
 
 		// Sync allows to flash just written data to the storage
 		Sync()

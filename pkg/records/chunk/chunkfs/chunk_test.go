@@ -62,7 +62,7 @@ func TestCheckNewChunkIsOk(t *testing.T) {
 		t.Fatal("File must be created")
 	}
 
-	si := &records.WrIterator{records.SrtingsIterator("aaa", "bbb")}
+	si := records.SrtingsIterator("aaa", "bbb")
 	n, offs, err := c.Write(context.Background(), si)
 	if n != 2 || offs != 2 || err != nil {
 		t.Fatal("expecting n=2, offs=2, err=nil, but n=", n, " offs=", offs, ", err=", err)
@@ -178,7 +178,7 @@ func testCheckPerf(t *testing.T) {
 	start := time.Now()
 	cnt := 0
 	for {
-		n, _, err := c.Write(context.Background(), &records.WrIterator{si})
+		n, _, err := c.Write(context.Background(), si)
 		if err != nil {
 			t.Log("Error err=", err)
 			break

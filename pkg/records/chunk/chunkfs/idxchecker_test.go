@@ -213,7 +213,7 @@ func prepareIdxChecker(t *testing.T, dir string) *IdxChecker {
 	defer cw.Close()
 
 	si := records.SrtingsIterator("aa", "bb", "cc")
-	n, cnt, err := cw.write(nil, &records.WrIterator{si})
+	n, cnt, err := cw.write(nil, si)
 	if n != 3 || cnt != 3 || err != nil {
 		t.Fatal("Expecting n=3, сnt=3, err=nil, but n=", n, ", offs=", cnt, ", err=", err)
 	}
