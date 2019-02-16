@@ -157,7 +157,7 @@ func (sc *srvIOCodec) writeResponse(reqId int32, opErr error, msg xbinary.Writab
 			return err
 		}
 
-		_, err = sc.ow.WriteBytes(buf)
+		_, err = sc.ow.WritePureBytes(buf)
 		sc.wrtr.Flush()
 		return err
 	}

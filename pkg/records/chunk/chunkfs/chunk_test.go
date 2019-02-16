@@ -153,7 +153,7 @@ func TestSetChunkIdxFileExt(t *testing.T) {
 	}
 }
 
-func TestCheckPerf(t *testing.T) {
+func testCheckPerf(t *testing.T) {
 	dir, err := ioutil.TempDir("", "chunkTest22")
 	if err != nil {
 		t.Fatal("Could not create new dir err=", err)

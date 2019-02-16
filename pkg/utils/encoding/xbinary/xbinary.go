@@ -48,7 +48,7 @@ func (ow *ObjectsWriter) WriteUint32(v uint32) (int, error) {
 
 // WriteUint64 writes value v to the writer. It returns number of bytes written or an error if any.
 func (ow *ObjectsWriter) WriteUint64(v uint64) (int, error) {
-	buf := ow.buf[:4]
+	buf := ow.buf[:8]
 	binary.BigEndian.PutUint64(buf, v)
 	return ow.Writer.Write(buf)
 }
@@ -59,12 +59,29 @@ func (ow *ObjectsWriter) WriteUint(v uint) (int, error) {
 	return ow.Writer.Write(ow.buf[:sz])
 }
 
-// WriteBytes writes value v to the writer. It returns number of bytes written or an error if any.
-func (ow *ObjectsWriter) WriteBytes(v []byte) (int, error) {
+// WritePureBytes writes value v to the writer. It returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WritePureBytes(v []byte) (int, error) {
 	return ow.Writer.Write(v)
 }
 
-// WriteString writes value v to writer w. It returns number of bytes written or an error if any.
+// WritePureString writes value v to writer w. It returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WritePureString(v string) (int, error) {
+	return ow.WritePureBytes(bytes.StringToByteArray(v))
+}
+
+// WriteBytes writes unmarshalable v to the writer. The written value could be unmarshaled by UnmarshalBytes,
+// It contains a header - length of the bytes slice at the beginning. The method returns number of bytes written or an error if any.
+func (ow *ObjectsWriter) WriteBytes(v []byte) (int, error) {
+	n, err := ow.WriteUint(uint(len(v)))
+	if err != nil {
+		return n, err
+	}
+	nn, err := ow.Writer.Write(v)
+	return nn + n, err
+}
+
+// WriteString writes unmarshalable v to the writer. The written value could be unmarshaled by UnmarshalString,
+// It contains a header - length of the bytes slice at the beginning. The method returns number of bytes written or an error if any.
 func (ow *ObjectsWriter) WriteString(v string) (int, error) {
 	return ow.WriteBytes(bytes.StringToByteArray(v))
 }

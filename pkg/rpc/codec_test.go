@@ -62,7 +62,7 @@ func (tm testMsg) WritableSize() int {
 }
 
 func (tm testMsg) WriteTo(ow *xbinary.ObjectsWriter) (int, error) {
-	return ow.WriteBytes(tm)
+	return ow.WritePureBytes(tm)
 }
 
 func TestClWriteCodec(t *testing.T) {

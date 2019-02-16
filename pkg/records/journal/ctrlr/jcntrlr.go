@@ -16,6 +16,8 @@ package ctrlr
 
 import (
 	"context"
+	"fmt"
+	"github.com/logrange/range/pkg/utils/bytes"
 	"sync"
 
 	"github.com/jrivets/log4g"
@@ -109,6 +111,10 @@ func (jc *jrnlController) GetOrCreate(ctx context.Context, jname string) (journa
 }
 
 func (jc *jrnlController) createNewJournal(jn string) (jrnlHolder, error) {
+	if !journal.NameRegExp.Match(bytes.StringToByteArray(jn)) {
+		return jrnlHolder{}, fmt.Errorf("Wrong journal name=\"%s\", which doesn't match to the name pattern=\"%s\"", jn, journal.JOURNAL_NAME_REGEX)
+	}
+
 	pth, err := journalPath(jc.JCfg.StorageDir(), jn)
 	if err != nil {
 		return jrnlHolder{}, errors.Wrapf(err, "Could not make journal path name for journal=%s", jn)

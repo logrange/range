@@ -32,7 +32,7 @@ func (ep echoPacket) WritableSize() int {
 }
 
 func (ep echoPacket) WriteTo(ow *xbinary.ObjectsWriter) (int, error) {
-	return ow.WriteBytes(ep)
+	return ow.WritePureBytes(ep)
 }
 
 func echo(reqId int32, reqBody []byte, sc *ServerConn) {
@@ -84,7 +84,7 @@ func newClient(port int) (*client, error) {
 		return nil, err
 	}
 
-	return NewClient(conn), nil
+	return NewClient(conn).(*client), nil
 }
 
 func BenchmarkEcho(b *testing.B) {

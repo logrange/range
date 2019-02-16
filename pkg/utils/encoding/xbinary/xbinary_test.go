@@ -2,6 +2,7 @@ package xbinary
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 )
 
@@ -45,7 +46,7 @@ func BenchmarkWriteBytes(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		btb.Reset()
-		ow.WriteBytes(bbb)
+		ow.WritePureBytes(bbb)
 	}
 }
 
@@ -223,4 +224,30 @@ func testMarshalInts(t *testing.T, v, elen int, mf func(v int, b []byte) (int, e
 	if idx != idx2 || v != val || err != nil {
 		t.Fatal("unmarshal idx=", idx2, " val=", val, ", but expected=", v, ", err=", err)
 	}
+}
+
+func TestObjectWriter(t *testing.T) {
+	btb := bytes.NewBuffer(nil)
+	ow := ObjectsWriter{Writer: btb}
+	i1, _ := ow.WriteUint(12341341234134)
+	i2, v, err := UnmarshalUint(btb.Bytes())
+	if v != 12341341234134 || err != nil || i2 != i1 {
+		t.Fatal("err=", err, " v=", v, "i2=", i2, ", i1=", i1, " buf=", btb.Bytes())
+	}
+
+	btb.Reset()
+	buf := []byte{1, 2, 3}
+	ow.WriteBytes(buf)
+	_, b, _ := UnmarshalBytes(btb.Bytes(), false)
+	if !reflect.DeepEqual(b, buf) {
+		t.Fatal("Expected", buf, " but read ", b)
+	}
+
+	btb.Reset()
+	ow.WriteUint64(uint64(4857293487592347598))
+	_, i64, _ := UnmarshalInt64(btb.Bytes())
+	if i64 != 4857293487592347598 {
+		t.Fatal("Unexpected i64=", i64)
+	}
+
 }

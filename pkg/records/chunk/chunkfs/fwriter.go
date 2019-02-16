@@ -72,7 +72,7 @@ func (w *fWriter) write(data []byte) (int64, error) {
 		return -1, errors.ClosedState
 	}
 	offset := w.fdPos
-	nn, err := w.ow.WriteBytes(data)
+	nn, err := w.ow.WritePureBytes(data)
 	w.fdPos += int64(nn)
 	return offset, err
 }

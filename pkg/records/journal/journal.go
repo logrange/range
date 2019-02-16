@@ -19,6 +19,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"io"
+	"regexp"
 
 	"github.com/logrange/range/pkg/records"
 	"github.com/logrange/range/pkg/records/chunk"
@@ -72,6 +73,18 @@ type (
 		SetPos(pos Pos)
 	}
 )
+
+const JOURNAL_NAME_REGEX = ".+"
+
+var NameRegExp *regexp.Regexp
+
+func init() {
+	var err error
+	NameRegExp, err = regexp.Compile(JOURNAL_NAME_REGEX)
+	if err != nil {
+		panic(err)
+	}
+}
 
 // JidFromName returns a journal id (jid) by its name
 func JHashFromName(jname string) uint64 {

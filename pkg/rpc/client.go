@@ -54,7 +54,7 @@ type (
 var reqId int32
 
 // NewClient creates new Client object for building RPC over rwc
-func NewClient(rwc io.ReadWriteCloser) *client {
+func NewClient(rwc io.ReadWriteCloser) Client {
 	c := new(client)
 	c.logger = log4g.GetLogger("rpc.client")
 	c.calls = make(map[int32]*call)

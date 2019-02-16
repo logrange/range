@@ -80,5 +80,5 @@ func (r Record) WritableSize() int {
 
 // WriteTo is a part of bytes.Writable interface
 func (r Record) WriteTo(ow *xbinary.ObjectsWriter) (int, error) {
-	return ow.WriteBytes(r)
+	return ow.WritePureBytes(r)
 }
