@@ -27,4 +27,17 @@ type (
 		// it returns number of bytes written and an error, if any
 		WriteTo(writer *ObjectsWriter) (int, error)
 	}
+
+	// WritableString a string which implements Writable
+	WritableString string
 )
+
+// WritableSize is part of Writable for WritableString
+func (ws WritableString) WritableSize() int {
+	return WritableStringSize(string(ws))
+}
+
+// WriteTo is part of Writable for WritableString
+func (ws WritableString) WriteTo(writer *ObjectsWriter) (int, error) {
+	return writer.WriteString(string(ws))
+}

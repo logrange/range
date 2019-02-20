@@ -20,10 +20,10 @@ func BenchmarkMarshalUint(b *testing.B) {
 func BenchmarkMarshalInt64(b *testing.B) {
 	var bb [30]byte
 	buf := bb[:]
-	ui := int64(1347598723405981734)
+	ui := uint64(1347598723405981734)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		MarshalInt64(ui, buf)
+		MarshalUint64(ui, buf)
 	}
 }
 
@@ -174,9 +174,9 @@ func TestMarshalUint32(t *testing.T) {
 
 func TestMarshalInt64(t *testing.T) {
 	testMarshalInts(t, 2542341, 8, func(v int, b []byte) (int, error) {
-		return MarshalInt64(int64(v), b)
+		return MarshalUint64(uint64(v), b)
 	}, func(b []byte) (int, int, error) {
-		i, v, err := UnmarshalInt64(b)
+		i, v, err := UnmarshalUint64(b)
 		return i, int(v), err
 	})
 }
@@ -245,7 +245,7 @@ func TestObjectWriter(t *testing.T) {
 
 	btb.Reset()
 	ow.WriteUint64(uint64(4857293487592347598))
-	_, i64, _ := UnmarshalInt64(btb.Bytes())
+	_, i64, _ := UnmarshalUint64(btb.Bytes())
 	if i64 != 4857293487592347598 {
 		t.Fatal("Unexpected i64=", i64)
 	}
