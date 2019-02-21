@@ -140,7 +140,7 @@ func UnmarshalUint32(buf []byte) (int, uint32, error) {
 // MarshalUint64 writes value v to the buf. Returns number of bytes written or an error, if any
 func MarshalUint64(v uint64, buf []byte) (int, error) {
 	if len(buf) < 8 {
-		return 0, noBufErr("MarshalInt64", len(buf), 8)
+		return 0, noBufErr("MarshalUint64", len(buf), 8)
 	}
 	binary.BigEndian.PutUint64(buf, v)
 	return 8, nil
