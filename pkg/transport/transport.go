@@ -68,10 +68,12 @@ func NewClientConn(cfg Config) (net.Conn, error) {
 
 func (c *Config) Apply(other *Config) {
 	if other.TlsEnabled != nil {
-		c.TlsEnabled = other.TlsEnabled
+		b := *other.TlsEnabled
+		c.TlsEnabled = &b
 	}
 	if other.Tls2Way != nil {
-		c.Tls2Way = other.Tls2Way
+		b := *other.Tls2Way
+		c.Tls2Way = &b
 	}
 	if other.TlsCertFile != "" {
 		c.TlsCertFile = other.TlsCertFile
