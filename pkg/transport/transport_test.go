@@ -15,7 +15,7 @@ func TestNoTlsConnectivity(t *testing.T) {
 		TlsEnabled: boolPtr(false),
 	}
 
-	cc, err := NetClientConn(cCfg)
+	cc, err := NewClientConn(cCfg)
 	if err == nil {
 		t.Fatal("expected client error")
 	}
@@ -30,7 +30,7 @@ func TestNoTlsConnectivity(t *testing.T) {
 	}
 	defer sl.Close()
 
-	cc, err = NetClientConn(cCfg)
+	cc, err = NewClientConn(cCfg)
 	if err != nil {
 		t.Fatal("expected no client error=", err)
 	}
@@ -62,7 +62,7 @@ func Test2WayTlsConnectivity(t *testing.T) {
 		TlsCAFile:   absCertPath("ca.pem"),
 	}
 
-	cc, err := NetClientConn(cCfg)
+	cc, err := NewClientConn(cCfg)
 	if err != nil {
 		t.Fatal("expected no client error=", err)
 	}
