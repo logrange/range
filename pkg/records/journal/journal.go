@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 
 	"github.com/logrange/range/pkg/records"
 	"github.com/logrange/range/pkg/records/chunk"
@@ -71,6 +72,9 @@ type (
 
 		// SetPos allows to change the iterator position
 		SetPos(pos Pos)
+
+		// Release allows to free some internal resources if they are used for itertion
+		Release()
 	}
 )
 
@@ -100,4 +104,26 @@ func (jp Pos) String() string {
 
 func (jp Pos) Less(jp2 Pos) bool {
 	return jp.CId < jp2.CId || (jp.CId == jp2.CId && jp.Idx < jp2.Idx)
+}
+
+func ParsePos(pstr string) (Pos, error) {
+	if len(pstr) == 0 {
+		return Pos{}, nil
+	}
+
+	if len(pstr) != 24 {
+		return Pos{}, fmt.Errorf("The \"%s\" doesn't look like a journal position.", pstr)
+	}
+
+	ckId, err := strconv.ParseUint(pstr[:16], 16, 64)
+	if err != nil {
+		return Pos{}, fmt.Errorf("Could not parse chunkId from %s of %s", pstr[:16], pstr)
+	}
+
+	pos, err := strconv.ParseUint(pstr[16:], 16, 32)
+	if err != nil {
+		return Pos{}, fmt.Errorf("Could not parse record index from %s of %s", pstr[16:], pstr)
+	}
+
+	return Pos{chunk.Id(ckId), uint32(pos)}, nil
 }

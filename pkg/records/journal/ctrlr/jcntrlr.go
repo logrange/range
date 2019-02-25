@@ -123,6 +123,7 @@ func (jc *jrnlController) createNewJournal(jn string) (jrnlHolder, error) {
 	if err != nil {
 		return jrnlHolder{}, errors.Wrapf(err, "Could not create journal path for journal=%s", jn)
 	}
+
 	fscc := newFSChnksController(jn, pth, jc.fdPool, jc.JCfg.GetChunkConfig())
 	cc := newChunksController(jn, fscc, jc.adv)
 	fscc.scan()
