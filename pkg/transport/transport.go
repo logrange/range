@@ -87,9 +87,6 @@ func (c *Config) Apply(other *Config) {
 	if other.ListenAddr != "" {
 		c.ListenAddr = other.ListenAddr
 	}
-	if other.ListenAddr != "" {
-		c.ListenAddr = other.ListenAddr
-	}
 }
 
 func (c *Config) Check() error {
