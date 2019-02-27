@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -83,9 +83,6 @@ func (c *Config) Apply(other *Config) {
 	}
 	if other.TlsCAFile != "" {
 		c.TlsCAFile = other.TlsCAFile
-	}
-	if other.ListenAddr != "" {
-		c.ListenAddr = other.ListenAddr
 	}
 	if other.ListenAddr != "" {
 		c.ListenAddr = other.ListenAddr
