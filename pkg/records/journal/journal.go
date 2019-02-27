@@ -32,6 +32,10 @@ type (
 	// Clients should use the interface for accessing to journals and their
 	// states
 	Controller interface {
+		// GetJournals returns a slice of known journals
+		GetJournals(ctx context.Context) []string
+
+		// GetOrCreate creates new, or gives an access to existing journal
 		GetOrCreate(ctx context.Context, jname string) (Journal, error)
 	}
 
