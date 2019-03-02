@@ -37,6 +37,12 @@ func TestExtendWriter(t *testing.T) {
 		t.Fatal("something goes wrong ", w)
 	}
 
+	var bigData [1000]byte
+	w.Write(bigData[:])
+	if len(w.buf) != 1500 || w.pos != 3*len(buf)+len(bigData) {
+		t.Fatal("something goes wrong ", w)
+	}
+
 	w.Close()
 	if w.pool != nil || w.buf != nil {
 		t.Fatal("must be cleaned up")

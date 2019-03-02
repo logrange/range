@@ -251,7 +251,7 @@ func MarshalBytes(v []byte, buf []byte) (int, error) {
 
 	buf = buf[idx:]
 	if len(buf) < ln {
-		return 0, noBufErr("MarshalBytes-size-body", ln, len(buf))
+		return 0, noBufErr("MarshalBytes-size-body", len(buf), ln)
 	}
 
 	copy(buf[:ln], v)
@@ -267,7 +267,7 @@ func UnmarshalBytes(buf []byte, newBuf bool) (int, []byte, error) {
 
 	ln := int(uln)
 	if len(buf) < ln+idx {
-		return 0, nil, noBufErr("UnmarshalBytes-size-body", ln, len(buf))
+		return 0, nil, noBufErr("UnmarshalBytes-size-body", len(buf)-idx, ln)
 	}
 
 	res := buf[idx : idx+ln]

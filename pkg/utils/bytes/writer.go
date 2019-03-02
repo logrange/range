@@ -33,7 +33,11 @@ func (w *Writer) Reset(initSz int, p *Pool) {
 func (w *Writer) Write(p []byte) (n int, err error) {
 	av := len(w.buf) - w.pos
 	if av < len(p) {
-		nb := w.pool.Arrange(int(2*len(w.buf) - len(w.buf)/5))
+		nbs := int(2*len(w.buf) - len(w.buf)/5)
+		if nbs-w.pos < len(p) {
+			nbs = len(w.buf) + 2*len(p)
+		}
+		nb := w.pool.Arrange(nbs)
 		copy(nb, w.buf[:w.pos])
 		w.pool.Release(w.buf)
 		w.buf = nb

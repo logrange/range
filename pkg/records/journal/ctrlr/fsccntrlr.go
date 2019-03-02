@@ -40,10 +40,11 @@ type (
 		// config for new chunks
 		chunkCfg chunkfs.Config
 
-		// known chunks
+		// knwnChunks is a mpa which contains ALL known chunks for the controller. It associates
+		// a chunk Id with its state and implementation (see fsChnkInfo).
 		knwnChunks map[chunk.Id]*fsChnkInfo
 
-		// chunks is a sorted slice of []chunk.Chunk
+		// chunks is a sorted slice of []chunk.Chunk that are in fsChunkStateOk state.
 		chunks []chunk.Chunk
 
 		startingCh chan struct{}
@@ -71,14 +72,15 @@ const (
 
 // A chunk desc states
 const (
-	// Scanned - found a file on the disk, but it is not checked
+	// Scanned - found a file on the disk, but it is not checked. The state means that chunk is
+	// detected, but it could not be read or writed, cause it is not checked yet.
 	fsChunkStateScanned = iota
 	// Error - Checked and could not be recovered
 	fsChunkStateError
-	// Ok - checked and chunk was created, normal one
+	// Ok - checked and chunk was created. The chunk could be used for read or write operation
 	fsChunkStateOk
 	// Deleted - chunk was going to be removed from the dir (controlled by external)
-	// procedure
+	// procedure.
 	fsChunkStateDeleted
 	// Deleting means that chunk is under deleting at the moment
 	fsChunkStateDeleting
@@ -138,7 +140,9 @@ func newFSChnksController(name, dir string, fdPool *chunkfs.FdPool, chunkCfg chu
 func (fc *fsChnksController) ensureInit() {
 	if atomic.LoadInt32(&fc.state) == fsCCStateNew {
 		_, err := fc.scan()
-		fc.logger.Error("ensureInit(): err=", err)
+		if err != nil {
+			fc.logger.Error("ensureInit(): err=", err)
+		}
 	}
 }
 
@@ -149,7 +153,7 @@ func (fc *fsChnksController) String() string {
 // scan checks the dir to detect chunk files there and build a list of chunk Ids.
 // It returns the list of chunk Ids that could be advertised (see getAdvChunks)
 func (fc *fsChnksController) scan() ([]chunk.Id, error) {
-	// acquire semaphore for the dir
+	// acquire semaphore for the dir, so to be sure nobody else is goint to make changes there
 	if err := fc.acquireSem(); err != nil {
 		return nil, err
 	}
@@ -164,6 +168,7 @@ func (fc *fsChnksController) scan() ([]chunk.Id, error) {
 
 	fc.lock.Lock()
 	if fc.state == fsCCStateNew {
+		// scan was run first time, so use the scan result as known chunks and return it to the invoker
 		atomic.StoreInt32(&fc.state, fsCCStateScanned)
 		fc.knwnChunks = make(map[chunk.Id]*fsChnkInfo)
 		for _, cid := range cks {
@@ -179,21 +184,25 @@ func (fc *fsChnksController) scan() ([]chunk.Id, error) {
 	}
 
 	update := false
+	// cidMap is the helper map, it contains found chunk Ids on the disk.
 	cidMap := make(map[chunk.Id]bool, len(cks))
+
+	// fill the map and update map of known chunks (add new only)
 	for _, cid := range cks {
 		cidMap[cid] = true
-		_, ok := fc.knwnChunks[cid]
-		if !ok {
+		if _, ok := fc.knwnChunks[cid]; !ok {
 			fc.knwnChunks[cid] = &fsChnkInfo{state: fsChunkStateScanned}
 			update = true
 		}
 	}
 
+	// second cycle. Scan the known chunks map to find chunks that are not in the folder anymore
 	for cid, ci := range fc.knwnChunks {
 		if _, ok := cidMap[cid]; !ok && ci.state != fsChunkStateDeleting && ci.state != fsChunkStateDeleted {
 			fc.logger.Warn("scan(): found chunk phantom ", cid, " no data in the dir, but there is a record in knwnChunks")
 			if ci.chunk != nil {
-				// to update chunks slice if it is there...
+				// set update flag to true, if the chunk is in fsChunkStateOk state. fsChunkStateOk means the
+				// chunk could be used for read or write
 				update = update || ci.state == fsChunkStateOk
 
 				go fc.closePhantom(ci.chunk)
@@ -205,6 +214,7 @@ func (fc *fsChnksController) scan() ([]chunk.Id, error) {
 	}
 
 	if update && fc.state == fsCCStateStarted {
+		// to update the list of chunks for usage
 		fc.switchStarting()
 	}
 	fc.lock.Unlock()
@@ -212,8 +222,10 @@ func (fc *fsChnksController) scan() ([]chunk.Id, error) {
 	return fc.getAdvChunks(), nil
 }
 
+// closePhantom allows to remove the phantom chunk chk from the knownl chunks map.
 func (fc *fsChnksController) closePhantom(chk *chunkWrapper) {
 	fc.logger.Info("Deleting phantom chunk ", chk)
+	// acquire the write lock to be sure the chunk is not used
 	err := chk.rwLock.LockWithCtx(nil)
 	if err != nil {
 		fc.logger.Warn("closePhantom(): Could not acquire Write lock for chunkWrapper ", chk, ", err=", err, ". Interrupting.")
@@ -225,6 +237,8 @@ func (fc *fsChnksController) closePhantom(chk *chunkWrapper) {
 	if err != nil {
 		fc.logger.Warn("closePhantom(): closeInternal returns err=", err)
 	}
+
+	// to remove the chunk chk from list of known chunks
 	fc.lock.Lock()
 	defer fc.lock.Unlock()
 
@@ -381,6 +395,8 @@ func (fc *fsChnksController) getLastChunk(ctx context.Context) (chunk.Chunk, err
 	return nil, nil
 }
 
+// acquireSem controls access to the dir. Only one go-routine can acquire a semaphore and it must release it
+// before any other one will be able to do the same
 func (fc *fsChnksController) acquireSem() error {
 	_, ok := <-fc.dirSem
 	if !ok {
@@ -389,6 +405,7 @@ func (fc *fsChnksController) acquireSem() error {
 	return nil
 }
 
+// releaseSem allows to release the semaphore
 func (fc *fsChnksController) releaseSem() {
 	fc.lock.Lock()
 	if fc.state != fsCCStateClosed {
@@ -397,6 +414,7 @@ func (fc *fsChnksController) releaseSem() {
 	fc.lock.Unlock()
 }
 
+// switchStarting sets the state to fsCCStateStarting and starts syncing chunks process
 func (fc *fsChnksController) switchStarting() {
 	fc.logger.Debug("Switch starting")
 	atomic.StoreInt32(&fc.state, fsCCStateStarting)
@@ -404,6 +422,8 @@ func (fc *fsChnksController) switchStarting() {
 	go fc.syncChunks()
 }
 
+// syncChunks is called for building fs.chunks list from known one. It is called every time when a chunk state is changed
+// with a purpose to upda update the fs.chunks list
 func (fc *fsChnksController) syncChunks() {
 	fc.logger.Debug("syncChunks() starting")
 	var toCreate map[chunk.Id]fsChnkInfo
