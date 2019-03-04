@@ -42,6 +42,7 @@ type (
 func newChunkListener(cc *chnksController) *chunkListener {
 	ccl := new(chunkListener)
 	ccl.cond = sync.NewCond(&ccl.lock)
+	ccl.cc = cc
 	return ccl
 }
 
