@@ -132,3 +132,8 @@ func (j *journal) getChunkById(cid chunk.Id) chunk.Chunk {
 	}
 	return nil
 }
+
+// WaitNewData please see journal.Journal interface
+func (j *journal) WaitNewData(ctx context.Context, pos Pos) error {
+	return j.cc.WaitForNewData(ctx, pos)
+}

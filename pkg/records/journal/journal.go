@@ -65,6 +65,11 @@ type (
 		// storage to be sure the read will be able to read the new added
 		// data
 		Sync()
+
+		// WaitNewData checks whether there is a new data at or after the position pos. If there is
+		// data, returns nil immediately, otherwise it will block the call until new data arrives or
+		// the context is closed. If the context is closed the ctx.Err() will be returned
+		WaitNewData(ctx context.Context, pos Pos) error
 	}
 
 	// Iterator interface provides a journal iterator
