@@ -277,6 +277,7 @@ func recoverAndNew(ctx context.Context, cfg *Config, fdPool *FdPool, newChunk bo
 		c.fileName = cfg.FileName
 		c.fdPool = fdPool
 		c.w = w
+		c.w.onFlushF = c.onWriterFlush
 		c.id = cfg.Id
 		c.maxRecSize = cfg.MaxRecordSize
 		if c.maxRecSize <= 0 {
