@@ -17,6 +17,7 @@ package ctrlr
 import (
 	"context"
 	"fmt"
+	"github.com/logrange/range/pkg/records/journal"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -522,4 +523,78 @@ func (fc *fsChnksController) syncChunks() {
 			toCreate[cid] = ci
 		}
 	}
+}
+
+func (fc *fsChnksController) truncate(ctx context.Context, maxSize int64, otf journal.OnTrunkF) (int, error) {
+	cks, err := fc.getChunks(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	sz := int64(0)
+	for _, ck := range cks {
+		sz += ck.Size()
+	}
+
+	// i contains index of first chunk after truncation. 0 means no truncation is needed
+	i := 0
+	for ; i < len(cks)-1 && sz > maxSize; i++ {
+		sz -= cks[i].Size()
+	}
+
+	if i == 0 {
+		return 0, nil
+	}
+
+	update := false
+	fc.lock.Lock()
+	for idx := 0; idx < i; idx++ {
+		ck, ok := fc.knwnChunks[cks[idx].Id()]
+		if !ok {
+			fc.logger.Warn("truncate(): Chunk with Id=", cks[idx].Id(), " was repored as alive, but it is not found now. Skipping...")
+			continue
+		}
+
+		if ck.state != fsChunkStateOk {
+			fc.logger.Warn("truncate(): Chunk with Id=", cks[idx].Id(), " was repored as alive, but it is not in Ok stay now. Skipping...")
+			continue
+		}
+
+		ck.state = fsChunkStateDeleting
+		go fc.truncateChunk(ck.chunk, otf)
+		update = true
+	}
+
+	if fc.state == fsCCStateStarted && update {
+		fc.switchStarting()
+	}
+
+	fc.lock.Unlock()
+	return i, nil
+}
+
+func (fc *fsChnksController) truncateChunk(chk *chunkWrapper, otf journal.OnTrunkF) {
+	fc.logger.Info("Truncating chunk ", chk)
+	// acquire the write lock to be sure the chunk is not used
+	err := chk.rwLock.LockWithCtx(nil)
+	if err != nil {
+		fc.logger.Warn("truncateChunk(): Could not acquire Write lock for chunkWrapper ", chk, ", err=", err, ". Interrupting.")
+		otf(chk.Id(), chunkfs.MakeChunkFileName(fc.dir, chk.Id()), errors.Wrapf(err, "could not acquire the chunk rwLock."))
+		return
+	}
+
+	cid := chk.Id()
+	err = chk.closeInternal()
+	if err != nil {
+		fc.logger.Warn("truncateChunk(): closeInternal returns err=", err)
+	}
+
+	otf(chk.Id(), chunkfs.MakeChunkFileName(fc.dir, chk.Id()), nil)
+
+	// to remove the chunk chk from list of known chunks
+	fc.lock.Lock()
+	defer fc.lock.Unlock()
+
+	fc.logger.Info("Deleting phantom chunk ", cid)
+	delete(fc.knwnChunks, cid)
 }

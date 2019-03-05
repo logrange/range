@@ -45,6 +45,9 @@ type (
 		// ctx is closed. Will return an error if any. or indicates the new
 		// data is added to the journal
 		WaitForNewData(ctx context.Context, pos Pos) error
+
+		// Trucncate causes the journal chunks truncation, please see the journal.Journal interface
+		Truncate(ctx context.Context, maxSize uint64, otf OnTrunkF) (int, error)
 	}
 
 	journal struct {
@@ -53,6 +56,7 @@ type (
 	}
 )
 
+// New creates a new journal
 func New(cc ChnksController) Journal {
 	j := new(journal)
 	j.cc = cc
@@ -110,6 +114,15 @@ func (j *journal) Size() int64 {
 	return sz
 }
 
+func (j *journal) Count() uint64 {
+	chunks, _ := j.cc.Chunks(nil)
+	var cnt uint64
+	for _, c := range chunks {
+		cnt += uint64(c.Count())
+	}
+	return cnt
+}
+
 func (j *journal) String() string {
 	return fmt.Sprintf("{name=%s}", j.cc.JournalName())
 }
@@ -136,4 +149,9 @@ func (j *journal) getChunkById(cid chunk.Id) chunk.Chunk {
 // WaitNewData please see journal.Journal interface
 func (j *journal) WaitNewData(ctx context.Context, pos Pos) error {
 	return j.cc.WaitForNewData(ctx, pos)
+}
+
+// Truncate truncates the journal. Please see journal.Journal interface
+func (j *journal) Truncate(ctx context.Context, maxSize uint64, otf OnTrunkF) (int, error) {
+	return j.cc.Truncate(ctx, maxSize, otf)
 }

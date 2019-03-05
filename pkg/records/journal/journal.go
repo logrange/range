@@ -55,8 +55,11 @@ type (
 		// It returns number of records written, next record write position and an error if any
 		Write(ctx context.Context, rit records.Iterator) (int, Pos, error)
 
-		// Size returns the summarized chunks size
+		// Size returns the summarized chunks' size
 		Size() int64
+
+		// Count returns number of records in the journal
+		Count() uint64
 
 		// Iterator returns an iterator to walk through the journal records
 		Iterator() Iterator
@@ -70,7 +73,23 @@ type (
 		// data, returns nil immediately, otherwise it will block the call until new data arrives or
 		// the context is closed. If the context is closed the ctx.Err() will be returned
 		WaitNewData(ctx context.Context, pos Pos) error
+
+		// Truncate checks the journal and marks one or many oldest chunks as truncated. Truncate
+		// removes the chunks from the journal, stopping handle them. It will invoke otf for each
+		// chunk. In case of multiple chunks were truncated otf will be called for each of them.
+		// otf can be called concurrently, the order how the chunks will be reported is not defined.
+		// Number of expected chunks truncated will be returned as the result. The otf function
+		// will be invoked the number of times for each chunk. Invocation of otf can start before
+		// the Truncate is over.
+		//
+		// notification to otf, could be significantly delayed due to the journal usage.
+		Truncate(ctx context.Context, maxSize uint64, otf OnTrunkF) (int, error)
 	}
+
+	// OnTrunkF is callback function provided to journal.Truncate. It will be invoked exactly the
+	// number of times returned by the journal.Truncate. If something goes wrong with the chunk,
+	// err will be not nil.
+	OnTrunkF func(cid chunk.Id, filename string, err error)
 
 	// Iterator interface provides a journal iterator
 	Iterator interface {
