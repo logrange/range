@@ -56,7 +56,7 @@ type (
 		Write(ctx context.Context, rit records.Iterator) (int, Pos, error)
 
 		// Size returns the summarized chunks' size
-		Size() int64
+		Size() uint64
 
 		// Count returns number of records in the journal
 		Count() uint64

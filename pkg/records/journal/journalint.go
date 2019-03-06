@@ -105,13 +105,13 @@ func (j *journal) Iterator() Iterator {
 	return &iterator{j: j}
 }
 
-func (j *journal) Size() int64 {
+func (j *journal) Size() uint64 {
 	chunks, _ := j.cc.Chunks(nil)
 	var sz int64
 	for _, c := range chunks {
 		sz += c.Size()
 	}
-	return sz
+	return uint64(sz)
 }
 
 func (j *journal) Count() uint64 {

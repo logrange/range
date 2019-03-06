@@ -350,6 +350,9 @@ func (fc *fsChnksController) createChunkForWrite(ctx context.Context) (chunk.Chu
 
 // getChunks returns sorted sllice of known journal chunks
 func (fc *fsChnksController) getChunks(ctx context.Context) (chunk.Chunks, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	for ctx.Err() == nil {
 		fc.lock.Lock()
 		if fc.state == fsCCStateStarted {
