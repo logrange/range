@@ -117,6 +117,11 @@ func TestFsGetChunks(t *testing.T) {
 		t.Fatal("Must be there, but ", ccChunkStateName(fc.knwnChunks[0xAA].state))
 	}
 
+	_, err = it.Get(context.Background())
+	if err != nil {
+		t.Fatal("must be not an err, but err=", err, it)
+	}
+
 	it.Close()
 	time.Sleep(time.Millisecond)
 	if len(fc.knwnChunks) != 0 {
