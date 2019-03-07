@@ -121,6 +121,9 @@ func (rw *RWLock) RLockWithCtx(ctx context.Context) error {
 	}
 
 	// will wait when will be allowed for a read
+	if rw.rrCh == nil {
+		rw.rrCh = make(chan bool)
+	}
 	ch = rw.rrCh
 	rw.lock.Unlock()
 
@@ -193,8 +196,6 @@ func (rw *RWLock) LockWithCtx(ctx context.Context) error {
 
 	rw.writers++
 	if rw.writers == 1 {
-		// first writer, creates rrCh notification channel
-		rw.rrCh = make(chan bool)
 		if atomic.AddInt32(&rw.readers, -rwLockMaxReaders) == -rwLockMaxReaders {
 			// happy to lock
 			rw.state = stateLocked
@@ -238,7 +239,10 @@ func (rw *RWLock) cancelWriter() {
 		} else if rw.state != stateClosed {
 			rw.state = stateInit
 		}
-		close(rw.rrCh)
+		if rw.rrCh != nil {
+			close(rw.rrCh)
+			rw.rrCh = nil
+		}
 	}
 	rw.lock.Unlock()
 }
@@ -266,7 +270,10 @@ func (rw *RWLock) Unlock() {
 		rw.state = stateInit
 		atomic.AddInt32(&rw.readers, rwLockMaxReaders)
 		// let readers know, if any, that there is no writers anymore
-		close(rw.rrCh)
+		if rw.rrCh != nil {
+			close(rw.rrCh)
+			rw.rrCh = nil
+		}
 	} else {
 		rw.state = stateNotifying
 	}

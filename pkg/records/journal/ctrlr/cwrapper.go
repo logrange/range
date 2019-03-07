@@ -29,8 +29,9 @@ type (
 	}
 
 	chunkIteratorWrapper struct {
-		cw *chunkWrapper
-		ci chunk.Iterator
+		cw   *chunkWrapper
+		ci   chunk.Iterator
+		lock bool
 	}
 )
 
@@ -69,12 +70,12 @@ func (cw *chunkWrapper) Iterator() (chunk.Iterator, error) {
 	}
 
 	ci, err := cw.chunk.Iterator()
+	cw.rwLock.RUnlock()
 	if err != nil {
-		cw.rwLock.RUnlock()
 		return nil, err
 	}
 
-	return &chunkIteratorWrapper{cw, ci}, nil
+	return &chunkIteratorWrapper{cw, ci, false}, nil
 }
 
 func (cw *chunkWrapper) Size() int64 {
@@ -99,13 +100,15 @@ func (cw *chunkWrapper) closeInternal() error {
 // ------------------------ chunkIteratorWrapper -----------------------------
 
 func (ci *chunkIteratorWrapper) Close() error {
-	ci.cw.rwLock.RUnlock()
+	ci.unlock()
 	ci.cw = nil
 	return ci.ci.Close()
 }
 
+// Release unlocks the read lock
 func (ci *chunkIteratorWrapper) Release() {
 	ci.ci.Release()
+	ci.unlock()
 }
 
 func (ci *chunkIteratorWrapper) Pos() uint32 {
@@ -113,6 +116,11 @@ func (ci *chunkIteratorWrapper) Pos() uint32 {
 }
 
 func (ci *chunkIteratorWrapper) SetPos(pos uint32) error {
+	if !ci.lock {
+		if err := ci.rlock(); err != nil {
+			return err
+		}
+	}
 	return ci.ci.SetPos(pos)
 }
 
@@ -121,5 +129,22 @@ func (ci *chunkIteratorWrapper) Next(ctx context.Context) {
 }
 
 func (ci *chunkIteratorWrapper) Get(ctx context.Context) (records.Record, error) {
+	if !ci.lock {
+		if err := ci.rlock(); err != nil {
+			return nil, err
+		}
+	}
 	return ci.ci.Get(ctx)
+}
+
+func (ci *chunkIteratorWrapper) rlock() error {
+	err := ci.cw.rwLock.RLock()
+	ci.lock = err == nil
+	return err
+}
+
+func (ci *chunkIteratorWrapper) unlock() {
+	if ci.lock {
+		ci.cw.rwLock.RUnlock()
+	}
 }

@@ -61,7 +61,7 @@ func NewFdPool(maxSize int) *FdPool {
 	}
 
 	fdp := new(FdPool)
-	fdp.frs = make(map[uint64]*frPool)
+	fdp.frs = make(map[uint64]*frPool, maxSize)
 	fdp.sem = make(chan bool, maxSize)
 	fdp.cchan = make(chan bool)
 	fdp.freeSem(maxSize)

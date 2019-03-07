@@ -579,7 +579,7 @@ func (fc *fsChnksController) truncate(ctx context.Context, maxSize int64, otf jo
 func (fc *fsChnksController) truncateChunk(chk *chunkWrapper, otf journal.OnTrunkF) {
 	fc.logger.Info("Truncating chunk ", chk)
 	// acquire the write lock to be sure the chunk is not used
-	err := chk.rwLock.LockWithCtx(nil)
+	err := chk.rwLock.Lock()
 	if err != nil {
 		fc.logger.Warn("truncateChunk(): Could not acquire Write lock for chunkWrapper ", chk, ", err=", err, ". Interrupting.")
 		otf(chk.Id(), chunkfs.MakeChunkFileName(fc.dir, chk.Id()), errors.Wrapf(err, "could not acquire the chunk rwLock."))
