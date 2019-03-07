@@ -105,6 +105,7 @@ func TestFsGetChunks(t *testing.T) {
 
 	// phantom 2
 	it, err := cks[0].Iterator()
+	it.Get(context.Background())
 	os.Remove(path.Join(fc.dir, chunkfs.MakeChunkFileName("", 0xAA)))
 	cids, err = fc.scan()
 	if err != nil || len(cids) != 0 {
@@ -115,6 +116,7 @@ func TestFsGetChunks(t *testing.T) {
 	if len(fc.knwnChunks) != 1 || fc.knwnChunks[0xAA].state != fsChunkStateDeleting {
 		t.Fatal("Must be there, but ", ccChunkStateName(fc.knwnChunks[0xAA].state))
 	}
+
 	it.Close()
 	time.Sleep(time.Millisecond)
 	if len(fc.knwnChunks) != 0 {
