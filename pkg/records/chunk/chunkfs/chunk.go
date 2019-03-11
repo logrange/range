@@ -334,7 +334,11 @@ func checkAndRecover(ctx context.Context, cfg *Config, fdPool *FdPool, gid uint6
 	}
 	defer fdPool.release(ir)
 
-	ic := IdxChecker{dr, ir, ctx, log}
+	ic := new(IdxChecker)
+	ic.dr = dr
+	ic.ir = ir
+	ic.ctx = ctx
+	ic.logger = log
 	if !cfg.CheckFullScan {
 		err = ic.LightCheck()
 	} else {
