@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ func NewFdPool(maxSize int) *FdPool {
 	}
 
 	fdp := new(FdPool)
-	fdp.frs = make(map[uint64]*frPool)
+	fdp.frs = make(map[uint64]*frPool, maxSize)
 	fdp.sem = make(chan bool, maxSize)
 	fdp.cchan = make(chan bool)
 	fdp.freeSem(maxSize)

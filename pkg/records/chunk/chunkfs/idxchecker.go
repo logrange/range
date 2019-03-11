@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,10 +26,11 @@ import (
 
 type (
 	IdxChecker struct {
-		dr     *fReader
-		ir     *fReader
-		ctx    context.Context
-		logger log4g.Logger
+		dr      *fReader
+		ir      *fReader
+		ctx     context.Context
+		logger  log4g.Logger
+		offsArr [ChnkIndexRecSize]byte
 	}
 )
 
@@ -58,8 +59,7 @@ func (ic *IdxChecker) LightCheck() error {
 
 	ic.ir.seek(pos - ChnkIndexRecSize)
 
-	var offsArr [ChnkIndexRecSize]byte
-	offsBuf := offsArr[:]
+	offsBuf := ic.offsArr[:]
 	_, err := ic.ir.read(offsBuf)
 	if err != nil {
 		return err
@@ -98,8 +98,7 @@ func (ic *IdxChecker) FullCheck() error {
 	ic.dr.seek(0)
 
 	cnt := 0
-	var offsArr [ChnkIndexRecSize]byte
-	offsBuf := offsArr[:]
+	offsBuf := ic.offsArr[:]
 	for {
 		if ic.ctx != nil && ic.ctx.Err() != nil {
 			ic.logger.Warn("FullCheck(): context is closed. Interrupting")
@@ -161,8 +160,7 @@ func (ic *IdxChecker) Recover(fixData bool) error {
 	ic.dr.seek(0)
 
 	cnt := 0
-	var offsArr [ChnkIndexRecSize]byte
-	offsBuf := offsArr[:]
+	offsBuf := ic.offsArr[:]
 	tPos := int64(0)
 	for {
 		if ic.ctx != nil && ic.ctx.Err() != nil {

@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,6 +45,9 @@ type (
 		// ctx is closed. Will return an error if any. or indicates the new
 		// data is added to the journal
 		WaitForNewData(ctx context.Context, pos Pos) error
+
+		// Trucncate causes the journal chunks truncation, please see the journal.Journal interface
+		Truncate(ctx context.Context, maxSize uint64, otf OnTrunkF) (int, error)
 	}
 
 	journal struct {
@@ -53,6 +56,7 @@ type (
 	}
 )
 
+// New creates a new journal
 func New(cc ChnksController) Journal {
 	j := new(journal)
 	j.cc = cc
@@ -101,13 +105,22 @@ func (j *journal) Iterator() Iterator {
 	return &iterator{j: j}
 }
 
-func (j *journal) Size() int64 {
+func (j *journal) Size() uint64 {
 	chunks, _ := j.cc.Chunks(nil)
 	var sz int64
 	for _, c := range chunks {
 		sz += c.Size()
 	}
-	return sz
+	return uint64(sz)
+}
+
+func (j *journal) Count() uint64 {
+	chunks, _ := j.cc.Chunks(nil)
+	var cnt uint64
+	for _, c := range chunks {
+		cnt += uint64(c.Count())
+	}
+	return cnt
 }
 
 func (j *journal) String() string {
@@ -131,4 +144,14 @@ func (j *journal) getChunkById(cid chunk.Id) chunk.Chunk {
 		return chunks[idx]
 	}
 	return nil
+}
+
+// WaitNewData please see journal.Journal interface
+func (j *journal) WaitNewData(ctx context.Context, pos Pos) error {
+	return j.cc.WaitForNewData(ctx, pos)
+}
+
+// Truncate truncates the journal. Please see journal.Journal interface
+func (j *journal) Truncate(ctx context.Context, maxSize uint64, otf OnTrunkF) (int, error) {
+	return j.cc.Truncate(ctx, maxSize, otf)
 }

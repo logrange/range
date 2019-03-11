@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,29 @@ import (
 
 	"github.com/logrange/range/pkg/utils/errors"
 )
+
+func BenchmarkReadLock(b *testing.B) {
+	var r RWLock
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.RLock()
+		r.RUnlock()
+	}
+}
+
+func BenchmarkLock(b *testing.B) {
+	var r RWLock
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if i&1 == 0 {
+			r.Lock()
+		} else {
+			r.Unlock()
+		}
+	}
+}
 
 func TestRWLockClose(t *testing.T) {
 	var r RWLock

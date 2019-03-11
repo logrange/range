@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -105,6 +105,7 @@ func TestFsGetChunks(t *testing.T) {
 
 	// phantom 2
 	it, err := cks[0].Iterator()
+	it.Get(context.Background())
 	os.Remove(path.Join(fc.dir, chunkfs.MakeChunkFileName("", 0xAA)))
 	cids, err = fc.scan()
 	if err != nil || len(cids) != 0 {
@@ -115,6 +116,12 @@ func TestFsGetChunks(t *testing.T) {
 	if len(fc.knwnChunks) != 1 || fc.knwnChunks[0xAA].state != fsChunkStateDeleting {
 		t.Fatal("Must be there, but ", ccChunkStateName(fc.knwnChunks[0xAA].state))
 	}
+
+	_, err = it.Get(context.Background())
+	if err != nil {
+		t.Fatal("must be not an err, but err=", err, it)
+	}
+
 	it.Close()
 	time.Sleep(time.Millisecond)
 	if len(fc.knwnChunks) != 0 {

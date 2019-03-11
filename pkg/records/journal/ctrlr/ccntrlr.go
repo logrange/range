@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,6 +78,15 @@ func (cc *chnksController) Chunks(ctx context.Context) (chunk.Chunks, error) {
 // WaitForNewData is part of journal.ChnksController interface
 func (cc *chnksController) WaitForNewData(ctx context.Context, pos journal.Pos) error {
 	return cc.clstnr.waitData(ctx, pos)
+}
+
+// Truncate marks some journal's chunks as truncated.
+func (cc *chnksController) Truncate(ctx context.Context, maxSize uint64, otf journal.OnTrunkF) (int, error) {
+	cnt, err := cc.localCC.truncate(ctx, int64(maxSize), otf)
+	if err == nil && cnt > 0 {
+		cc.adv.advertise(cc.name, cc.localCC.getAdvChunks())
+	}
+	return cnt, err
 }
 
 func (cc *chnksController) getLastChunk(ctx context.Context) (chunk.Chunk, error) {

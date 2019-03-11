@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ func (it *iterator) SetPos(pos Pos) {
 	}
 
 	if pos.CId != it.pos.CId {
-		it.Release()
+		it.closeChunk()
 	}
 
 	if it.ci != nil {
@@ -76,12 +76,18 @@ func (it *iterator) SetPos(pos Pos) {
 }
 
 func (it *iterator) Close() error {
-	it.Release()
+	it.closeChunk()
 	it.j = nil
 	return nil
 }
 
 func (it *iterator) Release() {
+	if it.ci != nil {
+		it.ci.Release()
+	}
+}
+
+func (it *iterator) closeChunk() {
 	if it.ci != nil {
 		it.ci.Close()
 		it.ci = nil
@@ -93,7 +99,7 @@ func (it *iterator) String() string {
 }
 
 func (it *iterator) advanceChunk() error {
-	it.Release()
+	it.closeChunk()
 	pos := it.pos
 	it.pos.CId++
 	it.pos.Idx = 0

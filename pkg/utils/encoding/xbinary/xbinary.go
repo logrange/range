@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -137,21 +137,21 @@ func UnmarshalUint32(buf []byte) (int, uint32, error) {
 	return 4, binary.BigEndian.Uint32(buf), nil
 }
 
-// MarshalInt64 writes value v to the buf. Returns number of bytes written or an error, if any
-func MarshalInt64(v int64, buf []byte) (int, error) {
+// MarshalUint64 writes value v to the buf. Returns number of bytes written or an error, if any
+func MarshalUint64(v uint64, buf []byte) (int, error) {
 	if len(buf) < 8 {
-		return 0, noBufErr("MarshalInt64", len(buf), 8)
+		return 0, noBufErr("MarshalUint64", len(buf), 8)
 	}
-	binary.BigEndian.PutUint64(buf, uint64(v))
+	binary.BigEndian.PutUint64(buf, v)
 	return 8, nil
 }
 
-// UnmarshalInt64 reads next int64 value from the buf. Retruns number of bytes read, the value or an error, if any.
-func UnmarshalInt64(buf []byte) (int, int64, error) {
+// UnmarshalUint64 reads next int64 value from the buf. Retruns number of bytes read, the value or an error, if any.
+func UnmarshalUint64(buf []byte) (int, uint64, error) {
 	if len(buf) < 8 {
-		return 0, 0, noBufErr("UnmarshalInt64", len(buf), 8)
+		return 0, 0, noBufErr("UnmarshalUint64", len(buf), 8)
 	}
-	return 8, int64(binary.BigEndian.Uint64(buf)), nil
+	return 8, binary.BigEndian.Uint64(buf), nil
 }
 
 // MarshalUint writes value v to the buf. Returns number of bytes written or an error, if any
@@ -251,7 +251,7 @@ func MarshalBytes(v []byte, buf []byte) (int, error) {
 
 	buf = buf[idx:]
 	if len(buf) < ln {
-		return 0, noBufErr("MarshalBytes-size-body", ln, len(buf))
+		return 0, noBufErr("MarshalBytes-size-body", len(buf), ln)
 	}
 
 	copy(buf[:ln], v)
@@ -267,7 +267,7 @@ func UnmarshalBytes(buf []byte, newBuf bool) (int, []byte, error) {
 
 	ln := int(uln)
 	if len(buf) < ln+idx {
-		return 0, nil, noBufErr("UnmarshalBytes-size-body", ln, len(buf))
+		return 0, nil, noBufErr("UnmarshalBytes-size-body", len(buf)-idx, ln)
 	}
 
 	res := buf[idx : idx+ln]

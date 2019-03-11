@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,6 +81,8 @@ type (
 	}
 )
 
+func doNothing() {}
+
 func newCWriter(fileName string, size, maxSize int64, count uint32) *cWrtier {
 	if size < 0 {
 		panic("size must be 0 or positive")
@@ -97,6 +99,7 @@ func newCWriter(fileName string, size, maxSize int64, count uint32) *cWrtier {
 	cw.idleTO = ChnkWriterIdleTO
 	cw.flushTO = ChnkWriterFlushTO
 	cw.maxSize = maxSize
+	cw.onFlushF = doNothing
 	cw.logger = log4g.GetLogger("chunk.writer").WithId("{" + fileName + "}").(log4g.Logger)
 	return cw
 }
@@ -287,7 +290,7 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 		cnt := cw.cnt
 		cw.cntCfrmd = cw.cnt
 		cw.sizeCfrmd = cw.size
-		if cw.cntCfrmd != cnt && cw.onFlushF != nil {
+		if cw.cntCfrmd != cnt {
 			cw.onFlushF()
 		}
 	} else if !signaled {
@@ -299,7 +302,7 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 }
 
 func (cw *cWrtier) flush() {
-	if cw.flushWriter() && cw.onFlushF != nil {
+	if cw.flushWriter() {
 		cw.onFlushF()
 	}
 }
@@ -343,7 +346,7 @@ func (cw *cWrtier) closeFWritersUnsafe() error {
 		close(cw.wSgnlChan)
 		cw.wSgnlChan = nil
 
-		if fl && cw.onFlushF != nil {
+		if fl {
 			go cw.onFlushF()
 		}
 	}

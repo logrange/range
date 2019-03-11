@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/logrange/range)](https://goreportcard.com/report/logrange/range) [![Build Status](https://travis-ci.com/logrange/range.svg?branch=master)](https://travis-ci.com/logrange/range)[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/logrange/range/blob/master/LICENSE)[![GoDoc](https://godoc.org/github.com/logrange/range/embed?status.png)](https://godoc.org/github.com/logrange/range/embed)
+[![Go Report Card](https://goreportcard.com/badge/logrange/range)](https://goreportcard.com/report/logrange/range) [![Build Status](https://travis-ci.com/logrange/range.svg?branch=master)](https://travis-ci.com/logrange/range) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/logrange/range/blob/master/LICENSE) [![GoDoc](https://godoc.org/github.com/logrange/range/embed?status.png)](https://godoc.org/github.com/logrange/range/embed)
 # range 
 Range is persistent storage of streams of records. It is a horizontally-scalable, highly-available, blazinbly fast aggregation system of streams of records. 
 

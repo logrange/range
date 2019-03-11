@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ type (
 	// Iterator is a records.Iterator extension, which allows to read records
 	// from a Сhunk.
 	//
-	// Chunk suppposes that the records are resided in a storage. Each record
+	// Chunk supposes that the records are resided in a storage. Each record
 	// has its offset or position. The position could be in the range [0..Chunk.Count())
 	// Current position contains position of the record which could be read by
 	// Get() function. Position could be changed via Next() function or via

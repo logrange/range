@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 
 	"github.com/logrange/range/pkg/records"
 	"github.com/logrange/range/pkg/records/chunk"
@@ -31,6 +32,10 @@ type (
 	// Clients should use the interface for accessing to journals and their
 	// states
 	Controller interface {
+		// GetJournals returns a slice of known journals
+		GetJournals(ctx context.Context) []string
+
+		// GetOrCreate creates new, or gives an access to existing journal
 		GetOrCreate(ctx context.Context, jname string) (Journal, error)
 	}
 
@@ -50,8 +55,11 @@ type (
 		// It returns number of records written, next record write position and an error if any
 		Write(ctx context.Context, rit records.Iterator) (int, Pos, error)
 
-		// Size returns the summarized chunks size
-		Size() int64
+		// Size returns the summarized chunks' size
+		Size() uint64
+
+		// Count returns number of records in the journal
+		Count() uint64
 
 		// Iterator returns an iterator to walk through the journal records
 		Iterator() Iterator
@@ -60,7 +68,28 @@ type (
 		// storage to be sure the read will be able to read the new added
 		// data
 		Sync()
+
+		// WaitNewData checks whether there is a new data at or after the position pos. If there is
+		// data, returns nil immediately, otherwise it will block the call until new data arrives or
+		// the context is closed. If the context is closed the ctx.Err() will be returned
+		WaitNewData(ctx context.Context, pos Pos) error
+
+		// Truncate checks the journal and marks one or many oldest chunks as truncated. Truncate
+		// removes the chunks from the journal, stopping handle them. It will invoke otf for each
+		// chunk. In case of multiple chunks were truncated otf will be called for each of them.
+		// otf can be called concurrently, the order how the chunks will be reported is not defined.
+		// Number of expected chunks truncated will be returned as the result. The otf function
+		// will be invoked the number of times for each chunk. Invocation of otf can start before
+		// the Truncate is over.
+		//
+		// notification to otf, could be significantly delayed due to the journal usage.
+		Truncate(ctx context.Context, maxSize uint64, otf OnTrunkF) (int, error)
 	}
+
+	// OnTrunkF is callback function provided to journal.Truncate. It will be invoked exactly the
+	// number of times returned by the journal.Truncate. If something goes wrong with the chunk,
+	// err will be not nil.
+	OnTrunkF func(cid chunk.Id, filename string, err error)
 
 	// Iterator interface provides a journal iterator
 	Iterator interface {
@@ -71,6 +100,9 @@ type (
 
 		// SetPos allows to change the iterator position
 		SetPos(pos Pos)
+
+		// Release allows to free some internal resources if they are used for itertion
+		Release()
 	}
 )
 
@@ -100,4 +132,26 @@ func (jp Pos) String() string {
 
 func (jp Pos) Less(jp2 Pos) bool {
 	return jp.CId < jp2.CId || (jp.CId == jp2.CId && jp.Idx < jp2.Idx)
+}
+
+func ParsePos(pstr string) (Pos, error) {
+	if len(pstr) == 0 {
+		return Pos{}, nil
+	}
+
+	if len(pstr) != 24 {
+		return Pos{}, fmt.Errorf("The \"%s\" doesn't look like a journal position.", pstr)
+	}
+
+	ckId, err := strconv.ParseUint(pstr[:16], 16, 64)
+	if err != nil {
+		return Pos{}, fmt.Errorf("Could not parse chunkId from %s of %s", pstr[:16], pstr)
+	}
+
+	pos, err := strconv.ParseUint(pstr[16:], 16, 32)
+	if err != nil {
+		return Pos{}, fmt.Errorf("Could not parse record index from %s of %s", pstr[16:], pstr)
+	}
+
+	return Pos{chunk.Id(ckId), uint32(pos)}, nil
 }

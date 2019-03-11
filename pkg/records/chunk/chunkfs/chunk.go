@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -277,6 +277,7 @@ func recoverAndNew(ctx context.Context, cfg *Config, fdPool *FdPool, newChunk bo
 		c.fileName = cfg.FileName
 		c.fdPool = fdPool
 		c.w = w
+		c.w.onFlushF = c.onWriterFlush
 		c.id = cfg.Id
 		c.maxRecSize = cfg.MaxRecordSize
 		if c.maxRecSize <= 0 {
@@ -333,7 +334,11 @@ func checkAndRecover(ctx context.Context, cfg *Config, fdPool *FdPool, gid uint6
 	}
 	defer fdPool.release(ir)
 
-	ic := IdxChecker{dr, ir, ctx, log}
+	ic := new(IdxChecker)
+	ic.dr = dr
+	ic.ir = ir
+	ic.ctx = ctx
+	ic.logger = log
 	if !cfg.CheckFullScan {
 		err = ic.LightCheck()
 	} else {

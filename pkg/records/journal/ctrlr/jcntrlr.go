@@ -1,4 +1,4 @@
-// Copyright 2018 The logrange Authors
+// Copyright 2018-2019 The logrange Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,6 +97,18 @@ func (jc *jrnlController) Init(ctx context.Context) error {
 	return nil
 }
 
+// GetJournals returns a slice of known journals
+func (jc *jrnlController) GetJournals(ctx context.Context) []string {
+	//TODO we use local storage so far, but it needs to have JournalCatalog in the future
+	jc.lock.Lock()
+	res := make([]string, 0, len(jc.jmap))
+	for src := range jc.jmap {
+		res = append(res, src)
+	}
+	jc.lock.Unlock()
+	return res
+}
+
 // GetOrCreate returns journal by its name. It is part of journal.Contorller
 func (jc *jrnlController) GetOrCreate(ctx context.Context, jname string) (journal.Journal, error) {
 	jc.lock.Lock()
@@ -123,6 +135,7 @@ func (jc *jrnlController) createNewJournal(jn string) (jrnlHolder, error) {
 	if err != nil {
 		return jrnlHolder{}, errors.Wrapf(err, "Could not create journal path for journal=%s", jn)
 	}
+
 	fscc := newFSChnksController(jn, pth, jc.fdPool, jc.JCfg.GetChunkConfig())
 	cc := newChunksController(jn, fscc, jc.adv)
 	fscc.scan()
