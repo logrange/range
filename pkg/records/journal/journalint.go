@@ -26,30 +26,6 @@ import (
 )
 
 type (
-	// ChnksController allows to create and access to the journal's chunks, it is used
-	// by the journal.journal implementation.
-	ChnksController interface {
-		// JournalName returns the jounal name it controls
-		JournalName() string
-
-		// GetChunkForWrite returns chunk for write operaion, the call could
-		// be cancelled via ctx.
-		// ctx == nil is acceptable
-		GetChunkForWrite(ctx context.Context) (chunk.Chunk, error)
-
-		// Chunks returns a sorted list of chunks. ctx can cancel the call. ctx
-		// could be nil.
-		Chunks(ctx context.Context) (chunk.Chunks, error)
-
-		// WaitForNewData waits till new data appears in the journal, or the
-		// ctx is closed. Will return an error if any. or indicates the new
-		// data is added to the journal
-		WaitForNewData(ctx context.Context, pos Pos) error
-
-		// Trucncate causes the journal chunks truncation, please see the journal.Journal interface
-		Truncate(ctx context.Context, maxSize uint64, otf OnTrunkF) (int, error)
-	}
-
 	journal struct {
 		cc     ChnksController
 		logger log4g.Logger
@@ -146,12 +122,7 @@ func (j *journal) getChunkById(cid chunk.Id) chunk.Chunk {
 	return nil
 }
 
-// WaitNewData please see journal.Journal interface
-func (j *journal) WaitNewData(ctx context.Context, pos Pos) error {
-	return j.cc.WaitForNewData(ctx, pos)
-}
-
-// Truncate truncates the journal. Please see journal.Journal interface
-func (j *journal) Truncate(ctx context.Context, maxSize uint64, otf OnTrunkF) (int, error) {
-	return j.cc.Truncate(ctx, maxSize, otf)
+// Chunks please see journal.Journal interface
+func (j *journal) Chunks() ChnksController {
+	return j.cc
 }

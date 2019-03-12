@@ -528,76 +528,56 @@ func (fc *fsChnksController) syncChunks() {
 	}
 }
 
-func (fc *fsChnksController) truncate(ctx context.Context, maxSize int64, otf journal.OnTrunkF) (int, error) {
-	cks, err := fc.getChunks(ctx)
-	if err != nil {
-		return 0, err
+func (fc *fsChnksController) deleteChunk(ctx context.Context, cid chunk.Id, cdf journal.OnChunkDeleteF) error {
+	if cdf == nil {
+		return errors.Errorf("deleteChunk(): cdf (callback function) must not be nil")
 	}
 
-	sz := int64(0)
-	for _, ck := range cks {
-		sz += ck.Size()
-	}
-
-	// i contains index of first chunk after truncation. 0 means no truncation is needed
-	i := 0
-	for ; i < len(cks)-1 && sz > maxSize; i++ {
-		sz -= cks[i].Size()
-	}
-
-	if i == 0 {
-		return 0, nil
-	}
-
-	update := false
 	fc.lock.Lock()
-	for idx := 0; idx < i; idx++ {
-		ck, ok := fc.knwnChunks[cks[idx].Id()]
-		if !ok {
-			fc.logger.Warn("truncate(): Chunk with Id=", cks[idx].Id(), " was repored as alive, but it is not found now. Skipping...")
-			continue
-		}
+	defer fc.lock.Unlock()
 
-		if ck.state != fsChunkStateOk {
-			fc.logger.Warn("truncate(): Chunk with Id=", cks[idx].Id(), " was repored as alive, but it is not in Ok stay now. Skipping...")
-			continue
-		}
-
-		ck.state = fsChunkStateDeleting
-		go fc.truncateChunk(ck.chunk, otf)
-		update = true
+	ck, ok := fc.knwnChunks[cid]
+	if !ok {
+		fc.logger.Warn("deleteChunk(): Chunk with Id=", cid, " is not found now.")
+		return rerrors.NotFound
 	}
 
-	if fc.state == fsCCStateStarted && update {
+	if ck.state != fsChunkStateOk {
+		fc.logger.Warn("deleteChunk(): Chunk with Id=", cid, " is not alive.")
+		return rerrors.WrongState
+	}
+
+	ck.state = fsChunkStateDeleting
+	go fc.waitAndNotifyDeletedChunk(ck.chunk, cdf)
+
+	if fc.state == fsCCStateStarted {
 		fc.switchStarting()
 	}
 
-	fc.lock.Unlock()
-	return i, nil
+	return nil
 }
 
-func (fc *fsChnksController) truncateChunk(chk *chunkWrapper, otf journal.OnTrunkF) {
-	fc.logger.Info("Truncating chunk ", chk)
+func (fc *fsChnksController) waitAndNotifyDeletedChunk(chk *chunkWrapper, cdf journal.OnChunkDeleteF) {
 	// acquire the write lock to be sure the chunk is not used
 	err := chk.rwLock.Lock()
 	if err != nil {
-		fc.logger.Warn("truncateChunk(): Could not acquire Write lock for chunkWrapper ", chk, ", err=", err, ". Interrupting.")
-		otf(chk.Id(), chunkfs.MakeChunkFileName(fc.dir, chk.Id()), errors.Wrapf(err, "could not acquire the chunk rwLock."))
+		fc.logger.Warn("waitAndNotifyDeletedChunk(): Could not acquire Write lock for chunkWrapper ", chk, ", err=", err, ". Interrupting.")
+		cdf(chk.Id(), chunkfs.MakeChunkFileName(fc.dir, chk.Id()), errors.Wrapf(err, "could not acquire the chunk rwLock."))
 		return
 	}
 
 	cid := chk.Id()
 	err = chk.closeInternal()
 	if err != nil {
-		fc.logger.Warn("truncateChunk(): closeInternal returns err=", err)
+		fc.logger.Warn("waitAndNotifyDeletedChunk(): closeInternal returns err=", err)
 	}
 
-	otf(chk.Id(), chunkfs.MakeChunkFileName(fc.dir, chk.Id()), nil)
+	cdf(chk.Id(), chunkfs.MakeChunkFileName(fc.dir, chk.Id()), nil)
 
 	// to remove the chunk chk from list of known chunks
 	fc.lock.Lock()
 	defer fc.lock.Unlock()
 
-	fc.logger.Info("Deleting phantom chunk ", cid)
+	fc.logger.Info("waitAndNotifyDeletedChunk(): done with ", cid)
 	delete(fc.knwnChunks, cid)
 }

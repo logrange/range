@@ -32,12 +32,17 @@ type (
 	// Clients should use the interface for accessing to journals and their
 	// states
 	Controller interface {
-		// GetJournals returns a slice of known journals
-		GetJournals(ctx context.Context) []string
+		// Visit iterate over all known journals and it calls the cv for every journal found. Iteration is
+		// stopped when all journals are visited or cv returns false
+		Visit(ctx context.Context, cv ControllerVisitorF)
 
 		// GetOrCreate creates new, or gives an access to existing journal
 		GetOrCreate(ctx context.Context, jname string) (Journal, error)
 	}
+
+	// ControllerVisitor is a func which will be called by Visit() function (see Controller). It must return
+	// false if the process should be stopped
+	ControllerVisitorF func(j Journal) bool
 
 	// Pos defines a position within a journal. Can be ordered.
 	Pos struct {
@@ -69,27 +74,39 @@ type (
 		// data
 		Sync()
 
-		// WaitNewData checks whether there is a new data at or after the position pos. If there is
-		// data, returns nil immediately, otherwise it will block the call until new data arrives or
-		// the context is closed. If the context is closed the ctx.Err() will be returned
-		WaitNewData(ctx context.Context, pos Pos) error
-
-		// Truncate checks the journal and marks one or many oldest chunks as truncated. Truncate
-		// removes the chunks from the journal, stopping handle them. It will invoke otf for each
-		// chunk. In case of multiple chunks were truncated otf will be called for each of them.
-		// otf can be called concurrently, the order how the chunks will be reported is not defined.
-		// Number of expected chunks truncated will be returned as the result. The otf function
-		// will be invoked the number of times for each chunk. Invocation of otf can start before
-		// the Truncate is over.
-		//
-		// notification to otf, could be significantly delayed due to the journal usage.
-		Truncate(ctx context.Context, maxSize uint64, otf OnTrunkF) (int, error)
+		// ChnksController returns ChnksController for the journal
+		Chunks() ChnksController
 	}
 
-	// OnTrunkF is callback function provided to journal.Truncate. It will be invoked exactly the
-	// number of times returned by the journal.Truncate. If something goes wrong with the chunk,
-	// err will be not nil.
-	OnTrunkF func(cid chunk.Id, filename string, err error)
+	// ChnksController allows to create and access to the journal's chunks, it is used
+	// by the journal.journal implementation.
+	ChnksController interface {
+		// JournalName returns the jounal name it controls
+		JournalName() string
+
+		// GetChunkForWrite returns chunk for write operaion, the call could
+		// be cancelled via ctx.
+		// ctx == nil is acceptable
+		GetChunkForWrite(ctx context.Context) (chunk.Chunk, error)
+
+		// Chunks returns a sorted list of chunks. ctx can cancel the call. ctx
+		// could be nil.
+		Chunks(ctx context.Context) (chunk.Chunks, error)
+
+		// WaitForNewData waits till new data appears in the journal, or the
+		// ctx is closed. Will return an error if any. or indicates the new
+		// data is added to the journal
+		WaitForNewData(ctx context.Context, pos Pos) error
+
+		// DeleteChunk marks the journal's chunk with Id provided as deleted. The cdf will be called as soon as the chunk
+		// will be marked as deleted. The DeleteChunk doesn't delete the chunk data physically, but it gets the chunk out from
+		// the service loop. The callback function could either delete the data or archive it.
+		DeleteChunk(ctx context.Context, cid chunk.Id, cdf OnChunkDeleteF) error
+	}
+
+	// OnChunkDeleteF is callback function provided to ChnksController.DeleteChunk. It will be invoked as soon as the
+	// chunk is marked as deleted.
+	OnChunkDeleteF func(cid chunk.Id, filename string, err error)
 
 	// Iterator interface provides a journal iterator
 	Iterator interface {

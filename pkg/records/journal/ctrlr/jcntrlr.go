@@ -98,15 +98,20 @@ func (jc *jrnlController) Init(ctx context.Context) error {
 }
 
 // GetJournals returns a slice of known journals
-func (jc *jrnlController) GetJournals(ctx context.Context) []string {
+func (jc *jrnlController) Visit(ctx context.Context, cv journal.ControllerVisitorF) {
 	//TODO we use local storage so far, but it needs to have JournalCatalog in the future
 	jc.lock.Lock()
-	res := make([]string, 0, len(jc.jmap))
-	for src := range jc.jmap {
-		res = append(res, src)
+	res := make([]journal.Journal, 0, len(jc.jmap))
+	for _, jh := range jc.jmap {
+		res = append(res, jh.jrnl)
 	}
 	jc.lock.Unlock()
-	return res
+
+	for _, j := range res {
+		if !cv(j) {
+			break
+		}
+	}
 }
 
 // GetOrCreate returns journal by its name. It is part of journal.Contorller
