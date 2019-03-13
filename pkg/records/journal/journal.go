@@ -98,10 +98,11 @@ type (
 		// data is added to the journal
 		WaitForNewData(ctx context.Context, pos Pos) error
 
-		// DeleteChunk marks the journal's chunk with Id provided as deleted. The cdf will be called as soon as the chunk
+		// DeleteChunk marks the journal's chunk with Id <= lastCid as deleted. The cdf will be called as soon as a chunk
 		// will be marked as deleted. The DeleteChunk doesn't delete the chunk data physically, but it gets the chunk out from
 		// the service loop. The callback function could either delete the data or archive it.
-		DeleteChunk(ctx context.Context, cid chunk.Id, cdf OnChunkDeleteF) error
+		// The function returns number of chunks makred as deleted or an error, if any
+		DeleteChunks(ctx context.Context, lastCid chunk.Id, cdf OnChunkDeleteF) (int, error)
 	}
 
 	// OnChunkDeleteF is callback function provided to ChnksController.DeleteChunk. It will be invoked as soon as the

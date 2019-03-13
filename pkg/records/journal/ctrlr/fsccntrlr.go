@@ -528,33 +528,50 @@ func (fc *fsChnksController) syncChunks() {
 	}
 }
 
-func (fc *fsChnksController) deleteChunk(ctx context.Context, cid chunk.Id, cdf journal.OnChunkDeleteF) error {
+// deleteChunks deletes all chunks with id <= lastCid
+func (fc *fsChnksController) deleteChunks(ctx context.Context, lastCid chunk.Id, cdf journal.OnChunkDeleteF) (int, error) {
 	if cdf == nil {
-		return errors.Errorf("deleteChunk(): cdf (callback function) must not be nil")
+		return 0, errors.Errorf("deleteChunk(): cdf (callback function) must not be nil")
+	}
+
+	cks, err := fc.getChunks(ctx)
+	if err != nil {
+		return 0, err
 	}
 
 	fc.lock.Lock()
 	defer fc.lock.Unlock()
 
-	ck, ok := fc.knwnChunks[cid]
-	if !ok {
-		fc.logger.Warn("deleteChunk(): Chunk with Id=", cid, " is not found now.")
-		return rerrors.NotFound
+	deleted := 0
+	for _, chk := range cks {
+		if chk.Id() > lastCid {
+			break
+		}
+
+		ck, ok := fc.knwnChunks[chk.Id()]
+		if !ok {
+			fc.logger.Warn("deleteChunk(): Chunk with Id=", chk.Id(), " is not found now.")
+			continue
+		}
+
+		if ck.state != fsChunkStateOk {
+			fc.logger.Warn("deleteChunk(): Chunk with Id=", chk.Id(), " is not alive.")
+			continue
+		}
+
+		ck.state = fsChunkStateDeleting
+		go fc.waitAndNotifyDeletedChunk(ck.chunk, cdf)
+		deleted++
 	}
 
-	if ck.state != fsChunkStateOk {
-		fc.logger.Warn("deleteChunk(): Chunk with Id=", cid, " is not alive.")
-		return rerrors.WrongState
+	if deleted > 0 {
+		fc.logger.Info("deleteChunk(): ", deleted, " chunks marked as deleted")
+		if fc.state == fsCCStateStarted {
+			fc.switchStarting()
+		}
 	}
 
-	ck.state = fsChunkStateDeleting
-	go fc.waitAndNotifyDeletedChunk(ck.chunk, cdf)
-
-	if fc.state == fsCCStateStarted {
-		fc.switchStarting()
-	}
-
-	return nil
+	return deleted, nil
 }
 
 func (fc *fsChnksController) waitAndNotifyDeletedChunk(chk *chunkWrapper, cdf journal.OnChunkDeleteF) {

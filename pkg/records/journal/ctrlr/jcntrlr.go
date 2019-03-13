@@ -89,7 +89,7 @@ func (jc *jrnlController) Init(ctx context.Context) error {
 
 	jc.logger.Info(len(jrnls), " journals found, will construct them right now.")
 	for _, jn := range jrnls {
-		_, err := jc.createNewJournal(jn)
+		_, err := jc.createNewJournal(jn, false)
 		if err != nil {
 			jc.logger.Error("Could not consturct new jousrnal with name ", jn, ", skipping. err=", err)
 		}
@@ -120,14 +120,16 @@ func (jc *jrnlController) GetOrCreate(ctx context.Context, jname string) (journa
 	var err error
 	jh, ok := jc.jmap[jname]
 	if !ok {
-		jh, err = jc.createNewJournal(jname)
+		jh, err = jc.createNewJournal(jname, true)
 	}
 	jc.lock.Unlock()
 	jh.cc.ensureInit()
 	return jh.jrnl, err
 }
 
-func (jc *jrnlController) createNewJournal(jn string) (jrnlHolder, error) {
+// createNewJournal creates new journal with name jn. It scans folder and creates new journal either there are chunks
+// there or noChunksOk==true
+func (jc *jrnlController) createNewJournal(jn string, noChunksOk bool) (jrnlHolder, error) {
 	if !journal.NameRegExp.Match(bytes.StringToByteArray(jn)) {
 		return jrnlHolder{}, fmt.Errorf("Wrong journal name=\"%s\", which doesn't match to the name pattern=\"%s\"", jn, journal.JOURNAL_NAME_REGEX)
 	}
@@ -143,7 +145,11 @@ func (jc *jrnlController) createNewJournal(jn string) (jrnlHolder, error) {
 
 	fscc := newFSChnksController(jn, pth, jc.fdPool, jc.JCfg.GetChunkConfig())
 	cc := newChunksController(jn, fscc, jc.adv)
-	fscc.scan()
+	cks, _ := fscc.scan()
+	if len(cks) == 0 && !noChunksOk {
+		jc.logger.Info("No chunks found in ", pth, ", skipping the journal ", jn, " creating.")
+		return jrnlHolder{}, nil
+	}
 	jh := jrnlHolder{cc, journal.New(cc)}
 	jc.jmap[jn] = jh
 	return jh, nil

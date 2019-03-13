@@ -80,9 +80,9 @@ func (cc *chnksController) WaitForNewData(ctx context.Context, pos journal.Pos) 
 	return cc.clstnr.waitData(ctx, pos)
 }
 
-// Truncate marks some journal's chunks as truncated.
-func (cc *chnksController) DeleteChunk(ctx context.Context, cid chunk.Id, cdf journal.OnChunkDeleteF) error {
-	return cc.localCC.deleteChunk(ctx, cid, cdf)
+// DeleteChunks marks journal's chunks with id <= lastCid as deleted
+func (cc *chnksController) DeleteChunks(ctx context.Context, lastCid chunk.Id, cdf journal.OnChunkDeleteF) (int, error) {
+	return cc.localCC.deleteChunks(ctx, lastCid, cdf)
 }
 
 func (cc *chnksController) getLastChunk(ctx context.Context) (chunk.Chunk, error) {
