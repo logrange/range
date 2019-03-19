@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/logrange/range/pkg/utils/bytes"
+	errors2 "github.com/logrange/range/pkg/utils/errors"
 	"sync"
 
 	"github.com/jrivets/log4g"
@@ -125,6 +126,26 @@ func (jc *jrnlController) GetOrCreate(ctx context.Context, jname string) (journa
 	jc.lock.Unlock()
 	jh.cc.ensureInit()
 	return jh.jrnl, err
+}
+
+func (jc *jrnlController) Delete(ctx context.Context, jname string) error {
+	jc.lock.Lock()
+	jh, ok := jc.jmap[jname]
+	var err error
+	if !ok {
+		err = errors2.NotFound
+	}
+	if jh.cc.isEmpty() {
+		delete(jc.jmap, jname)
+	} else {
+		err = errors2.IsNotEmpty
+	}
+	jc.lock.Unlock()
+	if err != nil {
+		return err
+	}
+	jh.cc.shutdown(ctx)
+	return nil
 }
 
 // createNewJournal creates new journal with name jn. It scans folder and creates new journal either there are chunks

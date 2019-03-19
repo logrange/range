@@ -22,4 +22,5 @@ var (
 	MaxSizeReached = fmt.Errorf("Could not perform the write operation. The maximum size of the storage is reached.")
 	NotFound       = fmt.Errorf("The requested object was not found")
 	ClosedState    = fmt.Errorf("The component state is closed")
+	IsNotEmpty     = fmt.Errorf("Is not empy")
 )

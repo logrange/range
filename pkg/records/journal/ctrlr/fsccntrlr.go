@@ -223,6 +223,13 @@ func (fc *fsChnksController) scan() ([]chunk.Id, error) {
 	return fc.getAdvChunks(), nil
 }
 
+func (fc *fsChnksController) isEmpty() bool {
+	fc.lock.Lock()
+	res := fc.state == fsCCStateStarted && len(fc.chunks) == 0
+	fc.lock.Unlock()
+	return res
+}
+
 // closePhantom allows to remove the phantom chunk chk from the knownl chunks map.
 func (fc *fsChnksController) closePhantom(chk *chunkWrapper) {
 	fc.logger.Info("Deleting phantom chunk ", chk)
@@ -589,7 +596,7 @@ func (fc *fsChnksController) waitAndNotifyDeletedChunk(chk *chunkWrapper, cdf jo
 		fc.logger.Warn("waitAndNotifyDeletedChunk(): closeInternal returns err=", err)
 	}
 
-	cdf(chk.Id(), chunkfs.MakeChunkFileName(fc.dir, chk.Id()), nil)
+	cdf(cid, chunkfs.MakeChunkFileName(fc.dir, cid), nil)
 
 	// to remove the chunk chk from list of known chunks
 	fc.lock.Lock()

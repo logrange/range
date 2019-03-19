@@ -36,6 +36,9 @@ type (
 	// go routines in the calls RLock() or Lock() will be unblocked with the
 	// error result as well.
 	RWLock struct {
+		// readers counter is used for passing state without using the lock. It must be initialized
+		// and set to 1, before any acquisition happens. When it is negative, it means that there is
+		// a writer and may be some readers are around. Number of actual readers if it is positive is readers-1.
 		readers int32
 		state   int
 		writers int32
@@ -49,7 +52,8 @@ type (
 const rwLockMaxReaders = 1 << 30
 
 const (
-	// stateNew indicates that the RWLock is not initialized yet
+	// stateNew indicates that the RWLock is not initialized yet, it must
+	// be changed after any usage of the RWLock component
 	stateNew = 0
 
 	// stateInit shows that writer is unlocked, if readers == 0, then
@@ -102,9 +106,12 @@ func (rw *RWLock) RLock() error {
 // RLockWithCtx same as RLock, but can be interrupted by ctx provided if blocked
 // ctx could be nil, then no difference with RLock() behavior
 func (rw *RWLock) RLockWithCtx(ctx context.Context) error {
-	if atomic.AddInt32(&rw.readers, 1) > 0 {
+	// if it is already init or has some readers?
+	if atomic.AddInt32(&rw.readers, 1) > 1 {
 		return nil
 	}
+
+	// if rw.readers <= 1 it means the RWLock is not initialized or some writers are around. Will check...
 
 	var ch chan bool
 	rw.lock.Lock()
@@ -144,18 +151,39 @@ func (rw *RWLock) RLockWithCtx(ctx context.Context) error {
 	return nil
 }
 
+// TryRLock tries to acquire the read lock and returns whether it was successful or not
+func (rw *RWLock) TryRLock() bool {
+	// if it is already init or has some readers?
+	if atomic.AddInt32(&rw.readers, 1) > 1 {
+		return true
+	}
+
+	rw.lock.Lock()
+	res := false
+	if rw.init() {
+		res = rw.state == stateInit || rw.state == stateWaiting
+	}
+	if !res {
+		atomic.AddInt32(&rw.readers, -1)
+	}
+	rw.lock.Unlock()
+	return res
+}
+
 // RUnlock undoes a single RLock call;
 // it does not affect other simultaneous readers.
 func (rw *RWLock) RUnlock() {
 	r := atomic.AddInt32(&rw.readers, -1) + rwLockMaxReaders
 	// no writers?
-	if r > 0 {
+	if r > 1 {
 		return
 	}
 
-	if r < 0 {
+	if r <= 0 {
 		panic(fmt.Sprintf("Incorrect (negative) readers counter rc=%s", rw))
 	}
+
+	// r == 1, means that rw.reader == -rwLockMaxReaders + 1
 
 	rw.lock.Lock()
 	if rw.state == stateLocked {
@@ -196,7 +224,7 @@ func (rw *RWLock) LockWithCtx(ctx context.Context) error {
 
 	rw.writers++
 	if rw.writers == 1 {
-		if atomic.AddInt32(&rw.readers, -rwLockMaxReaders) == -rwLockMaxReaders {
+		if atomic.AddInt32(&rw.readers, -rwLockMaxReaders) == -rwLockMaxReaders+1 {
 			// happy to lock
 			rw.state = stateLocked
 			rw.lock.Unlock()
@@ -226,6 +254,89 @@ func (rw *RWLock) LockWithCtx(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// UpgradeToWrite changes the read mode to write if possible. The function must be called holding the
+// read lock. If it returns true, the lock must be freed by Unlock() function. If it returns false
+// then RUnlock must be used instead.
+func (rw *RWLock) UpgradeToWrite() bool {
+	rw.lock.Lock()
+	if !rw.init() {
+		rw.lock.Unlock()
+		return false
+	}
+
+	corr := int32(1)
+	if rw.writers == 0 {
+		corr = rwLockMaxReaders + 1
+	}
+
+	if atomic.AddInt32(&rw.readers, -corr) == -rwLockMaxReaders+1 {
+		rw.writers++
+		// happy to lock
+		rw.state = stateLocked
+		rw.lock.Unlock()
+		return true
+	}
+	atomic.AddInt32(&rw.readers, corr)
+	rw.lock.Unlock()
+	return false
+}
+
+// DowngradeToRead releases write lock to the read state. Retruns true, if the operation was successful. The rw
+// must be in read state after the operation and it has to be relesed via RUnloc() then. If the write lock
+// was not acquired the method will panic. It returns false if the rw already closed.
+func (rw *RWLock) DowngradeToRead() bool {
+	rw.lock.Lock()
+	if !rw.init() {
+		rw.lock.Unlock()
+		return false
+	}
+
+	if rw.state != stateLocked {
+		rw.lock.Unlock()
+		panic("lock was not acquired for write")
+	}
+
+	rw.writers--
+	if rw.writers == 0 {
+		rw.state = stateInit
+		atomic.AddInt32(&rw.readers, rwLockMaxReaders+1)
+	} else {
+		rw.state = stateWaiting
+		atomic.AddInt32(&rw.readers, 1)
+	}
+
+	// let readers know, if any, that there is no writers anymore
+	if rw.rrCh != nil {
+		close(rw.rrCh)
+		rw.rrCh = nil
+	}
+
+	rw.lock.Unlock()
+	return true
+}
+
+// TryLock tries to acquire write lock for the object
+func (rw *RWLock) TryLock() bool {
+	rw.lock.Lock()
+	if !rw.init() {
+		rw.lock.Unlock()
+		return false
+	}
+
+	if rw.writers == 0 {
+		if atomic.AddInt32(&rw.readers, -rwLockMaxReaders) == -rwLockMaxReaders+1 {
+			rw.writers++
+			// happy to lock
+			rw.state = stateLocked
+			rw.lock.Unlock()
+			return true
+		}
+		atomic.AddInt32(&rw.readers, rwLockMaxReaders)
+	}
+	rw.lock.Unlock()
+	return false
 }
 
 func (rw *RWLock) cancelWriter() {
@@ -300,6 +411,8 @@ func (rw *RWLock) init() bool {
 		return true
 	}
 
+	// initialized state has readers==1 (!)
+	atomic.AddInt32(&rw.readers, 1)
 	rw.state = stateInit
 	rw.clsCh = make(chan struct{})
 	rw.wrCh = make(chan bool)
@@ -307,5 +420,5 @@ func (rw *RWLock) init() bool {
 }
 
 func (rw *RWLock) String() string {
-	return fmt.Sprintf("{rdrs=%d, wrtrs=%d, state=%d}", atomic.LoadInt32(&rw.readers), atomic.LoadInt32(&rw.writers), rw.state)
+	return fmt.Sprintf("{rdrs=%d, wrtrs=%d, state=%d}", atomic.LoadInt32(&rw.readers)-1, atomic.LoadInt32(&rw.writers), rw.state)
 }

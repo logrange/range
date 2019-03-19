@@ -45,6 +45,16 @@ func BenchmarkLock(b *testing.B) {
 	}
 }
 
+func BenchmarkTryLockUnsuccessful(b *testing.B) {
+	var r RWLock
+	r.Lock()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.TryRLock()
+	}
+}
+
 func TestRWLockClose(t *testing.T) {
 	var r RWLock
 	err := r.Close()
@@ -56,21 +66,35 @@ func TestRWLockClose(t *testing.T) {
 	}
 }
 
+func TestRWLockStupid(t *testing.T) {
+	var r RWLock
+	r.RLock()
+	go func() {
+		time.Sleep(time.Millisecond)
+		r.RUnlock()
+	}()
+	if r.wrCh == nil || r.state == stateNew {
+		t.Fatal("Must be initialized ", r)
+	}
+	r.Lock()
+	r.Unlock()
+}
+
 func TestRWLockRLock(t *testing.T) {
 	var r RWLock
 	r.RLock()
-	if r.readers != 1 {
+	if r.readers != 2 {
 		t.Fatal("Expecting readers 1, but ", r)
 	}
 	r.RUnlock()
 	r.RLock()
 	r.RLock()
-	if r.readers != 2 {
+	if r.readers != 3 {
 		t.Fatal("Expecting readers 2, but ", r)
 	}
 	r.RUnlock()
 	r.RUnlock()
-	if r.readers != 0 {
+	if r.readers != 1 {
 		t.Fatal("Expecting readers 0, but ", r)
 	}
 
@@ -99,18 +123,17 @@ func TestRWLockRLock(t *testing.T) {
 	if err != errors.ClosedState {
 		t.Fatal("must be wrong state to acquire reader after closing err=", err)
 	}
-
 }
 
 func TestRWLockLock(t *testing.T) {
 	var r RWLock
 	r.Lock()
-	if r.writers != 1 || r.readers != -rwLockMaxReaders {
+	if r.writers != 1 || r.readers != -rwLockMaxReaders+1 {
 		t.Fatal("Wrong rc=", r, ", after 1 writer acquisition")
 	}
 
 	r.Unlock()
-	if r.writers != 0 || r.readers != 0 {
+	if r.writers != 0 || r.readers != 1 {
 		t.Fatal("Wrong rc=", r, ", after writer release")
 	}
 	r.Lock()
@@ -333,5 +356,147 @@ func TestRWLockRLockCtx(t *testing.T) {
 	}
 	if time.Now().Sub(start) < 10*time.Millisecond {
 		t.Fatal("Must be at least 10 milliseconds wait")
+	}
+}
+
+func TestRWLockUpgradeToWrite(t *testing.T) {
+	var rw RWLock
+	if rw.UpgradeToWrite() {
+		t.Fatal("Must not be possible to upgrade (not locked)")
+	}
+
+	rw.RLock()
+	if !rw.UpgradeToWrite() {
+		t.Fatal("Must be possible to upgrade")
+	}
+	rw.Unlock()
+	rw.RLock()
+	rw.RLock()
+	if rw.UpgradeToWrite() {
+		t.Fatal("Must not be possible to upgrade")
+	}
+	rw.RUnlock()
+	rw.RLock()
+	rw.RUnlock()
+	if !rw.UpgradeToWrite() {
+		t.Fatal("Must be possible to upgrade")
+	}
+	rw.Unlock()
+}
+
+func TestRWLockUpgradeToWrite2(t *testing.T) {
+	var rw RWLock
+	if rw.UpgradeToWrite() {
+		t.Fatal("Must not be possible to upgrade (not locked)")
+	}
+
+	rw.RLock()
+	var secondLock time.Time
+	go func() {
+		rw.Lock()
+		secondLock = time.Now()
+		rw.Unlock()
+	}()
+
+	time.Sleep(5 * time.Millisecond)
+	if rw.writers != 1 || !rw.UpgradeToWrite() {
+		t.Fatal("Must be possible to upgrade")
+	}
+	now := time.Now()
+	time.Sleep(time.Millisecond)
+	if now.Before(secondLock) {
+		t.Fatal("oops second lock must not happen")
+	}
+	rw.Unlock()
+	time.Sleep(time.Millisecond)
+	if now.After(secondLock) {
+		t.Fatal("second lock must happen after now=", now)
+	}
+}
+
+func TestRWLockTryRLock(t *testing.T) {
+	var rw RWLock
+	if !rw.TryRLock() || rw.readers != 2 {
+		t.Fatal("Must be able to acquire")
+	}
+	rw.RUnlock()
+	rw.RLock()
+	if !rw.TryRLock() || rw.readers != 3 {
+		t.Fatal("Must be able to acquire")
+	}
+	rw.RUnlock()
+	rw.RUnlock()
+
+	rw.Lock()
+	if rw.TryRLock() {
+		t.Fatal("Must not be able to acquire")
+	}
+	rw.Unlock()
+
+	if !rw.TryRLock() || rw.readers != 2 {
+		t.Fatal("Must be able to acquire")
+	}
+	rw.RUnlock()
+	rw.Close()
+	if rw.TryRLock() {
+		t.Fatal("Must not be able to acquire")
+	}
+}
+
+func TestTryLock(t *testing.T) {
+	var rw RWLock
+	if !rw.TryLock() || rw.writers != 1 {
+		t.Fatal("Must be ok")
+	}
+	rw.Unlock()
+
+	rw.Lock()
+	if rw.TryLock() || rw.writers != 1 {
+		t.Fatal("Must not be locked")
+	}
+	rw.Unlock()
+
+	rw.RLock()
+	if rw.TryLock() || rw.readers != 2 {
+		t.Fatal("Must not be locked")
+	}
+	rw.RUnlock()
+
+	if !rw.TryLock() || rw.writers != 1 {
+		t.Fatal("Must be ok")
+	}
+	rw.Unlock()
+}
+
+func TestDowngradeToRead(t *testing.T) {
+	var rw RWLock
+	rw.Lock()
+
+	// when rw.readers == 2, it means 1 reader!!!
+	if !rw.DowngradeToRead() || rw.readers != 2 || rw.writers != 0 {
+		t.Fatal("Must be in read state ", rw.readers, rw.writers)
+	}
+
+	rw.RLock()
+	rw.RUnlock()
+	rw.RUnlock()
+	rw.Lock()
+
+	var locked int64
+	go func() {
+		rw.Lock()
+		locked = time.Now().UnixNano()
+		rw.Unlock()
+	}()
+
+	time.Sleep(time.Millisecond)
+	start := time.Now().UnixNano()
+	rw.DowngradeToRead()
+	time.Sleep(time.Millisecond)
+	rw.RUnlock()
+	time.Sleep(time.Millisecond)
+
+	if locked-start < 0 {
+		t.Fatal("Lock in cycle must happen after all transformations")
 	}
 }

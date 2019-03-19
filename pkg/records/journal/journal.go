@@ -38,6 +38,11 @@ type (
 
 		// GetOrCreate creates new, or gives an access to existing journal
 		GetOrCreate(ctx context.Context, jname string) (Journal, error)
+
+		// Delete removes the internal record, but doesn't touch the journal data.
+		// an error could be returned if there are alive chunks registered. The journal could be
+		// re-created following up calls by GetOrCreate
+		Delete(ctx context.Context, jname string) error
 	}
 
 	// ControllerVisitor is a func which will be called by Visit() function (see Controller). It must return
@@ -103,6 +108,9 @@ type (
 		// the service loop. The callback function could either delete the data or archive it.
 		// The function returns number of chunks makred as deleted or an error, if any
 		DeleteChunks(ctx context.Context, lastCid chunk.Id, cdf OnChunkDeleteF) (int, error)
+
+		// LocalFolder returns the folder on the FS where all the chunks are stored
+		LocalFolder() string
 	}
 
 	// OnChunkDeleteF is callback function provided to ChnksController.DeleteChunk. It will be invoked as soon as the

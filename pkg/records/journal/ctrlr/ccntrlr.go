@@ -51,6 +51,10 @@ func (cc *chnksController) ensureInit() {
 	cc.localCC.ensureInit()
 }
 
+func (cc *chnksController) isEmpty() bool {
+	return cc.localCC.isEmpty()
+}
+
 func (cc *chnksController) shutdown(ctx context.Context) {
 	cc.localCC.close()
 	cc.clstnr.close()
@@ -83,6 +87,10 @@ func (cc *chnksController) WaitForNewData(ctx context.Context, pos journal.Pos) 
 // DeleteChunks marks journal's chunks with id <= lastCid as deleted
 func (cc *chnksController) DeleteChunks(ctx context.Context, lastCid chunk.Id, cdf journal.OnChunkDeleteF) (int, error) {
 	return cc.localCC.deleteChunks(ctx, lastCid, cdf)
+}
+
+func (cc *chnksController) LocalFolder() string {
+	return cc.localCC.dir
 }
 
 func (cc *chnksController) getLastChunk(ctx context.Context) (chunk.Chunk, error) {
