@@ -46,6 +46,10 @@ func (li *lazyIt) Get(ctx context.Context) (records.Record, error) {
 	return li.buf, nil
 }
 
+func (li *lazyIt) Release() {
+
+}
+
 func TestCWriterWrite(t *testing.T) {
 	dir, err := ioutil.TempDir("", "cwriterWriteTest")
 	if err != nil {

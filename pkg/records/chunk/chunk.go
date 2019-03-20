@@ -101,14 +101,6 @@ type (
 		// The Iterator inherits Iterator interface
 		records.Iterator
 
-		// Release is an implementation specific function which allows to
-		// release underlying resources. It can be called by the iterator using
-		// code to let the implementation know that underlying resources can
-		// be freed. There is no guarantee that the iterator will be used after
-		// the call again. Implementation should guarantee that it will behave
-		// same way after the call as if it is never called.
-		Release()
-
 		// Pos returns the current iterator position within the chunk. It could
 		// return value in [0..Chunk.Count()) range
 		Pos() uint32

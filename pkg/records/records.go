@@ -66,6 +66,14 @@ type (
 		// If error is nil, then the method returns slice of bytes, which is the
 		// current record. The slice could be nil as well, which is valid.
 		Get(ctx context.Context) (Record, error)
+
+		// Release is an implementation specific function which allows to
+		// release underlying resources. It can be called by the iterator using
+		// code to let the implementation know that underlying resources can
+		// be released. There is no guarantee that the iterator will be used after
+		// the call again. Implementation should guarantee that it will behave
+		// same way after the call as if it is never called.
+		Release()
 	}
 )
 

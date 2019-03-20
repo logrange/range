@@ -91,6 +91,11 @@ func (bbi *Reader) Next(ctx context.Context) {
 	bbi.fillCur()
 }
 
+// Release does nothing for the reader. Just part of Iterator
+func (bbi *Reader) Release() {
+
+}
+
 // Buf returns underlying buffer
 func (bbi *Reader) Buf() []byte {
 	return bbi.buf

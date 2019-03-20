@@ -126,9 +126,6 @@ type (
 
 		// SetPos allows to change the iterator position
 		SetPos(pos Pos)
-
-		// Release allows to free some internal resources if they are used for itertion
-		Release()
 	}
 )
 
