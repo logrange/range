@@ -90,3 +90,9 @@ func (r Record) WritableSize() int {
 func (r Record) WriteTo(ow *xbinary.ObjectsWriter) (int, error) {
 	return ow.WritePureBytes(r)
 }
+
+// AsWeakString represents the record as a string, but doesn't allocate the new buffer for it
+// The method must be used with care
+func (r Record) AsWeakString() string {
+	return bytes.ByteArrayToString(r)
+}
