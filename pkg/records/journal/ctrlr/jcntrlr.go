@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"github.com/logrange/range/pkg/utils/bytes"
 	errors2 "github.com/logrange/range/pkg/utils/errors"
+	"github.com/logrange/range/pkg/utils/fileutil"
 	"sync"
 
 	"github.com/jrivets/log4g"
@@ -159,7 +160,7 @@ func (jc *jrnlController) createNewJournal(jn string, noChunksOk bool) (jrnlHold
 	if err != nil {
 		return jrnlHolder{}, errors.Wrapf(err, "Could not make journal path name for journal=%s", jn)
 	}
-	err = ensureDirExists(pth)
+	err = fileutil.EnsureDirExists(pth)
 	if err != nil {
 		return jrnlHolder{}, errors.Wrapf(err, "Could not create journal path for journal=%s", jn)
 	}

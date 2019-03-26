@@ -145,7 +145,7 @@ func (cw *cWrtier) ensureFWriter() error {
 					case <-tmr.C:
 						cw.lock.Lock()
 						// check whether lro was advanced while it was sleeping
-						if cw.cnt == cnt {
+						if atomic.LoadUint32(&cw.cnt) == cnt {
 							cw.logger.Debug("closing file-writer due to idle timeout")
 							cw.closeFWritersUnsafe()
 							cw.lock.Unlock()
@@ -187,7 +187,7 @@ func (cw *cWrtier) count() uint32 {
 	if cw.iw != nil {
 		return uint32(cw.iw.size() / ChnkIndexRecSize)
 	}
-	return cw.cnt
+	return atomic.LoadUint32(&cw.cnt)
 }
 
 // isFlushNeeded returns whether the write buffer (see fWrtier) should be be
@@ -214,14 +214,15 @@ func (cw *cWrtier) isFlushNeeded() bool {
 // records from the iterator.
 func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32, error) {
 	cw.lock.Lock()
-	defer cw.lock.Unlock()
 
 	if cw.size >= cw.maxSize {
+		cw.lock.Unlock()
 		return 0, cw.cnt, errors.MaxSizeReached
 	}
 
 	err := cw.ensureFWriter()
 	if err != nil {
+		cw.lock.Unlock()
 		return 0, cw.cnt, err
 	}
 
@@ -232,6 +233,11 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 	// checking the closed flag holding cw.lock, allows us to detect Close()
 	// call and give up before we iterated completely over the iterator
 	for atomic.LoadInt32(&cw.closed) == 0 {
+		if cw.size >= cw.maxSize {
+			err = errors.MaxSizeReached
+			break
+		}
+
 		var rec records.Record
 		rec, err = it.Get(ctx)
 		if err != nil {
@@ -273,14 +279,15 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 		}
 
 		// update dynamic pararms
-		cw.cnt++
-		cw.size = cw.w.fdPos
+		atomic.AddUint32(&cw.cnt, 1)
+		atomic.StoreInt64(&cw.size, cw.w.fdPos)
 
 		it.Next(ctx)
 		wrtn++
 
 	}
 
+	callOnFlush := false
 	if atomic.LoadInt32(&cw.closed) != 0 {
 		err = errors.ClosedState
 	} else if clsd {
@@ -288,16 +295,18 @@ func (cw *cWrtier) write(ctx context.Context, it records.Iterator) (int, uint32,
 	} else if cw.w.buffered() == 0 && cw.iw.buffered() == 0 {
 		// ok, write buffer is empty, no flush is needed
 		cnt := cw.cnt
-		cw.cntCfrmd = cw.cnt
-		cw.sizeCfrmd = cw.size
-		if cw.cntCfrmd != cnt {
-			cw.onFlushF()
-		}
+		atomic.StoreUint32(&cw.cntCfrmd, cw.cnt)
+		atomic.StoreInt64(&cw.sizeCfrmd, cw.size)
+		callOnFlush = cw.cntCfrmd != cnt
 	} else if !signaled {
 		// signal the channel about write anyway
 		cw.wSgnlChan <- true
 	}
 
+	cw.lock.Unlock()
+	if callOnFlush {
+		cw.onFlushF()
+	}
 	return wrtn, cw.cnt, err
 }
 
@@ -309,7 +318,6 @@ func (cw *cWrtier) flush() {
 
 func (cw *cWrtier) flushWriter() bool {
 	cw.lock.Lock()
-	defer cw.lock.Unlock()
 
 	if cw.w != nil {
 		cw.w.flush()
@@ -319,8 +327,9 @@ func (cw *cWrtier) flushWriter() bool {
 	}
 
 	res := cw.cntCfrmd != cw.cnt
-	cw.cntCfrmd = cw.cnt
-	cw.sizeCfrmd = cw.size
+	atomic.StoreUint32(&cw.cntCfrmd, cw.cnt)
+	atomic.StoreInt64(&cw.sizeCfrmd, cw.size)
+	cw.lock.Unlock()
 	return res
 }
 
@@ -341,7 +350,7 @@ func (cw *cWrtier) closeFWritersUnsafe() error {
 		}
 
 		fl := cw.cntCfrmd != cw.cnt
-		cw.cntCfrmd = cw.cnt
+		atomic.StoreUint32(&cw.cntCfrmd, cw.cnt)
 
 		close(cw.wSgnlChan)
 		cw.wSgnlChan = nil
@@ -368,5 +377,6 @@ func (cw *cWrtier) closeUnsafe() (err error) {
 }
 
 func (cw *cWrtier) String() string {
-	return fmt.Sprintf("{cntCfrmd=%d, cnt=%d, size=%d, closed=%d, idleTO=%s, flushTO=%s, maxSize=%d}", cw.cntCfrmd, cw.cnt, cw.size, cw.closed, cw.idleTO, cw.flushTO, cw.maxSize)
+	return fmt.Sprintf("{cntCfrmd=%d, cnt=%d, size=%d, closed=%d, idleTO=%s, flushTO=%s, maxSize=%d}",
+		atomic.LoadUint32(&cw.cntCfrmd), atomic.LoadUint32(&cw.cnt), atomic.LoadInt64(&cw.size), cw.closed, cw.idleTO, cw.flushTO, cw.maxSize)
 }

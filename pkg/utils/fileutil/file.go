@@ -16,6 +16,7 @@ package fileutil
 
 import (
 	"github.com/logrange/range/pkg/utils/strutil"
+	"os"
 	"path/filepath"
 )
 
@@ -53,4 +54,17 @@ func EscapeToFileName(fname string) string {
 // file name was escaped by EscapeToFileName() before
 func UnescapeFileName(fname string) string {
 	return FileNameEscaper.Unescape(fname)
+}
+
+// EnsureDirExists checks whether the dir exists and create the new one if it doesn't
+func EnsureDirExists(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return os.MkdirAll(dir, 0740)
+		}
+	} else {
+		d.Close()
+	}
+	return err
 }

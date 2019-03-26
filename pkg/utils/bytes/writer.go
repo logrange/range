@@ -15,36 +15,51 @@
 package bytes
 
 // Writer struct support io.Writer interface and allows to write data into extendable
-// underlying buffer. It uses Pool for arranging new buffers
+// underlying buffer. It uses Pool for arranging new buffers.
+//
+// The Writer MUST not be copied.
 type Writer struct {
 	pool *Pool
 	buf  []byte
 	pos  int
 }
 
-// Reset drops the existing buffer position and initializes the Writer to use p as a Pool
-func (w *Writer) Reset(initSz int, p *Pool) {
+// Init initilizes the Writer to use Pool p and initialize the w.buf to specified size
+func (w *Writer) Init(initSz int, p *Pool) {
 	w.pool = p
 	w.pos = 0
-	w.buf = w.pool.Arrange(initSz)
+	if p != nil {
+		w.buf = w.pool.Arrange(initSz)
+	} else {
+		w.buf = make([]byte, initSz)
+	}
+}
+
+// Reset drops the pos to 0, but it doesn't touch underlying buffer
+func (w *Writer) Reset() {
+	w.pos = 0
 }
 
 // Write is part of io.Writer
 func (w *Writer) Write(p []byte) (n int, err error) {
-	av := len(w.buf) - w.pos
-	if av < len(p) {
-		nbs := int(2*len(w.buf) - len(w.buf)/5)
-		if nbs-w.pos < len(p) {
-			nbs = len(w.buf) + 2*len(p)
-		}
-		nb := w.pool.Arrange(nbs)
-		copy(nb, w.buf[:w.pos])
-		w.pool.Release(w.buf)
-		w.buf = nb
-	}
+	w.grow(len(p))
 	n = copy(w.buf[w.pos:], p)
 	w.pos += n
-	return
+	return n, nil
+}
+
+// WriteByte writes one byte to the buffer
+func (w *Writer) WriteByte(b byte) {
+	w.grow(1)
+	w.buf[w.pos] = b
+	w.pos++
+}
+
+// WriteString writes string to the buffer
+func (w *Writer) WriteString(s string) {
+	w.grow(len(s))
+	n := copy(w.buf[w.pos:], StringToByteArray(s))
+	w.pos += n
 }
 
 // Buf returns underlying written buffer
@@ -54,8 +69,29 @@ func (w *Writer) Buf() []byte {
 
 // Close releases resources and makes w unusable
 func (w *Writer) Close() error {
-	w.pool.Release(w.buf)
+	if w.pool != nil {
+		w.pool.Release(w.buf)
+	}
 	w.buf = nil
 	w.pool = nil
 	return nil
+}
+
+func (w *Writer) grow(n int) {
+	av := cap(w.buf) - w.pos
+	if av < n {
+		nbs := int(2*cap(w.buf) + n)
+		if cap(w.buf) == 0 {
+			nbs = 60 + 2*n
+		}
+		var nb []byte
+		if w.pool != nil {
+			nb = w.pool.Arrange(nbs)
+		} else {
+			nb = make([]byte, nbs)
+		}
+		copy(nb, w.buf[:w.pos])
+		w.pool.Release(w.buf)
+		w.buf = nb
+	}
 }

@@ -37,7 +37,7 @@ import (
 // 			convenience friendly
 // chunks - a set of chunks for the journal. Files are here
 func scanForJournals(dir string) ([]string, error) {
-	err := ensureDirExists(dir)
+	err := fileutil.EnsureDirExists(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -113,16 +113,4 @@ func journalPath(baseDir, jname string) (string, error) {
 		return "", fmt.Errorf("Journal folder name must be at least 2 chars length. ejname=%s from the original name=%s", ejn, jname)
 	}
 	return filepath.Join(baseDir, ejn[len(ejn)-2:], ejn), nil
-}
-
-func ensureDirExists(dir string) error {
-	d, err := os.Open(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return os.MkdirAll(dir, 0740)
-		}
-	} else {
-		d.Close()
-	}
-	return err
 }

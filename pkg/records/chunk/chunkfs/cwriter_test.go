@@ -158,8 +158,8 @@ func TestCWriterMaxSize(t *testing.T) {
 
 	si := records.SrtingsIterator("a", "b", "c")
 	n, cnt, err := cw.write(nil, si)
-	if n != 3 || cnt != 3 || err != nil {
-		t.Fatal("Expecting n=3, cnt=3, err=nil, but n=", n, ", cnt=", cnt, ", err=", err)
+	if n != 1 || cnt != 1 || err != errors.MaxSizeReached {
+		t.Fatal("Expecting n=1, cnt=1, err=nil, but n=", n, ", cnt=", cnt, ", err=", err)
 	}
 
 	si = records.SrtingsIterator("a", "b", "c")

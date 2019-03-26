@@ -11,17 +11,21 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package errors
+
+package context
 
 import (
-	"fmt"
+	"context"
+	"time"
 )
 
-var (
-	WrongState     = fmt.Errorf("Wrong state, expected another one")
-	MaxSizeReached = fmt.Errorf("Could not perform the write operation. The maximum size of the storage is reached.")
-	NotFound       = fmt.Errorf("The requested object was not found")
-	ClosedState    = fmt.Errorf("The component state is closed")
-	IsNotEmpty     = fmt.Errorf("Is not empy")
-	AlreadyExists  = fmt.Errorf("The object already exists")
-)
+// Sleep allows to sleep for duration of until the ctx is closed. Will return
+// ctx.Err() or nil
+func Sleep(ctx context.Context, d time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(d):
+	}
+	return nil
+}

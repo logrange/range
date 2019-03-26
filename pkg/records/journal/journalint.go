@@ -46,7 +46,8 @@ func (j *journal) Name() string {
 	return j.cc.JournalName()
 }
 
-// Write - writes records received from the iterator to the journal.
+// Write - writes records received from the iterator to the journal. The Write can write only a portion from
+// the it. It can happen when max chunk size is hit.
 func (j *journal) Write(ctx context.Context, rit records.Iterator) (int, Pos, error) {
 	var err error
 	for _, err = rit.Get(ctx); err == nil; {
@@ -55,11 +56,11 @@ func (j *journal) Write(ctx context.Context, rit records.Iterator) (int, Pos, er
 			return 0, Pos{}, err
 		}
 
-		// we either would be able to write something or all to the chunk, or will get
-		// an error
+		// If c.Write has an error, it will return n and offs actually written. So if n > 0 let's
+		// consider the operation successful
 		n, offs, err := c.Write(ctx, rit)
 		if n > 0 {
-			return n, Pos{c.Id(), offs}, err
+			return n, Pos{c.Id(), offs}, nil
 		}
 
 		if err != errors.MaxSizeReached {
