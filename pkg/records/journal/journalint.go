@@ -104,10 +104,10 @@ func (j *journal) String() string {
 	return fmt.Sprintf("{name=%s}", j.cc.JournalName())
 }
 
-// getChunkById is looking for a chunk with cid. If there is no such chunk
-// in the list, it will return the chunk with lowest Id, but which is greater
-// then the cid. If there is no such chunks, so cid points is out
-// of the chunks range, then the method returns nil
+// getChunkById is looking for a chunk with cid. If there are chunks, but
+// there is no such chunk with cid in the list, it will return the chunk with lowest Id,
+// but which is greater then the cid. If there is no chunks at all the method returns nil
+// if the cid greater than last chunk Id, it returns the last chunk
 func (j *journal) getChunkById(cid chunk.Id) chunk.Chunk {
 	chunks, _ := j.cc.Chunks(context.Background())
 	n := len(chunks)
@@ -120,7 +120,7 @@ func (j *journal) getChunkById(cid chunk.Id) chunk.Chunk {
 	if idx < n {
 		return chunks[idx]
 	}
-	return nil
+	return chunks[n-1]
 }
 
 // Chunks please see journal.Journal interface

@@ -40,7 +40,7 @@ func (it *iterator) Next(ctx context.Context) {
 }
 
 func (it *iterator) Get(ctx context.Context) (records.Record, error) {
-	err := it.ensureChkIt(it.pos.CId)
+	err := it.ensureChkIt()
 	if err != nil {
 		return nil, err
 	}
@@ -94,45 +94,33 @@ func (it *iterator) closeChunk() {
 	}
 }
 
-func (it *iterator) String() string {
-	return fmt.Sprintf("{pos=%s, ci exist=%t}", it.pos, it.ci != nil)
-}
-
 func (it *iterator) advanceChunk() error {
 	it.closeChunk()
-	pos := it.pos
 	it.pos.CId++
 	it.pos.Idx = 0
-	err := it.ensureChkIt(it.pos.CId)
-	if err == io.EOF {
-		it.pos = pos
-	}
-	return err
+	return it.ensureChkIt()
 }
 
-// findChunkByPos looks for the chunk and updates the pos if needed
-func (it *iterator) findChkAndCorrectPos(cid chunk.Id) chunk.Chunk {
-	chk := it.j.getChunkById(cid)
-	if chk == nil {
-		return nil
-	}
-
-	it.pos.CId = chk.Id()
-	if chk.Id() > cid {
-		it.pos.Idx = 0
-	}
-
-	return chk
-}
-
-func (it *iterator) ensureChkIt(cid chunk.Id) error {
+// ensureChkId selects chunk by position iterator. It corrects the position if needed
+func (it *iterator) ensureChkIt() error {
 	if it.ci != nil {
 		return nil
 	}
 
-	chk := it.findChkAndCorrectPos(cid)
+	chk := it.j.getChunkById(it.pos.CId)
 	if chk == nil {
 		return io.EOF
+	}
+
+	if chk.Id() < it.pos.CId {
+		it.pos.CId = chk.Id()
+		it.pos.Idx = chk.Count()
+		return io.EOF
+	}
+
+	if chk.Id() > it.pos.CId {
+		it.pos.CId = chk.Id()
+		it.pos.Idx = 0
 	}
 
 	var err error
@@ -140,7 +128,12 @@ func (it *iterator) ensureChkIt(cid chunk.Id) error {
 	if err != nil {
 		return err
 	}
+
 	it.ci.SetPos(it.pos.Idx)
 	it.pos.Idx = it.ci.Pos()
 	return nil
+}
+
+func (it *iterator) String() string {
+	return fmt.Sprintf("{pos=%s, ci exist=%t}", it.pos, it.ci != nil)
 }
