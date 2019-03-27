@@ -43,7 +43,7 @@ func TestFsCCScan(t *testing.T) {
 	ft.createChunk(t, "AA.dat", records.SrtingsIterator("aaa", "bbb"))
 	fc := ft.newFSChnksController()
 	for i := 0; i < 3; i++ {
-		cks, err := fc.scan()
+		cks, err := fc.scan(true)
 		if err != nil || len(cks) != 2 || cks[0] != 0xAA || cks[1] != 0xBB {
 			t.Fatal("i=", i, " Unexpected err=", err, cks)
 		}
@@ -55,22 +55,51 @@ func TestFsCCScan(t *testing.T) {
 
 	c1 := fc.knwnChunks[0xAA]
 	c1.state = fsChunkStateError
-	cks, err := fc.scan()
+	cks, err := fc.scan(false)
 	if err != nil || len(cks) != 1 || cks[0] != 0xBB || len(fc.knwnChunks) != 2 {
 		t.Fatal(" Unexpected err=", err, cks, ccChunkStateName(fc.knwnChunks[0xAA].state))
 	}
 
 	os.Remove(path.Join(fc.dir, "BB.dat"))
-	cks, err = fc.scan()
+	cks, err = fc.scan(false)
 	if err != nil || len(cks) != 0 || len(fc.knwnChunks) != 1 {
 		t.Fatal(" Unexpected err=", err, cks)
 	}
 
 	fc.close()
-	_, err = fc.scan()
+	_, err = fc.scan(false)
 	if err == nil || len(fc.knwnChunks) != 0 {
 		t.Fatal("must be an error after close(), fc.knwnChunks=", fc.knwnChunks)
 	}
+}
+
+func TestFsCCScanEmpty(t *testing.T) {
+	ft := initFT(t)
+	defer ft.done()
+
+	fmt.Println("dir=", ft.dir)
+	ft.createChunk(t, "BB.dat", records.SrtingsIterator())
+	fc := ft.newFSChnksController()
+	cks, err := fc.scan(false)
+	if err != nil || len(cks) != 1 {
+		t.Fatal(" Unexpected result, must be one chunk at least err=", err, cks)
+	}
+
+	fn := path.Join(ft.dir, "BB.dat")
+	if _, err := os.Stat(fn); err != nil {
+		t.Fatal("The file must exist ")
+	}
+
+	cks, err = fc.scan(true)
+	if err != nil || len(cks) != 0 {
+		t.Fatal("Unexpected result, the chunk must gone err=", err, cks)
+	}
+
+	if _, err = os.Stat(fn); !os.IsNotExist(err) {
+		t.Fatal("The file must be removed by the scan")
+	}
+
+	fc.close()
 }
 
 func TestFsGetChunks(t *testing.T) {
@@ -81,7 +110,7 @@ func TestFsGetChunks(t *testing.T) {
 	ft.createChunk(t, chunkfs.MakeChunkFileName("", 0xBB), records.SrtingsIterator("aaa", "bbb"))
 	ft.createChunk(t, chunkfs.MakeChunkFileName("", 0xAA), records.SrtingsIterator("aaa", "bbb"))
 	fc := ft.newFSChnksController()
-	fc.scan()
+	fc.scan(false)
 	if len(fc.knwnChunks) != 2 || fc.state != fsCCStateScanned {
 		t.Fatal("wrong fc.knwnChunks=", fc.knwnChunks, ", 2 elements are expected there")
 	}
@@ -93,7 +122,7 @@ func TestFsGetChunks(t *testing.T) {
 
 	// phantom
 	os.Remove(path.Join(fc.dir, chunkfs.MakeChunkFileName("", 0xBB)))
-	cids, err := fc.scan()
+	cids, err := fc.scan(false)
 	if err != nil || len(cids) != 1 {
 		t.Fatal(" Unexpected err=", err, ", or cids=", cids, " len=", len(cids))
 	}
@@ -107,7 +136,7 @@ func TestFsGetChunks(t *testing.T) {
 	it, err := cks[0].Iterator()
 	it.Get(context.Background())
 	os.Remove(path.Join(fc.dir, chunkfs.MakeChunkFileName("", 0xAA)))
-	cids, err = fc.scan()
+	cids, err = fc.scan(false)
 	if err != nil || len(cids) != 0 {
 		t.Fatal(" Unexpected err=", err, ", or cids=", cids, " len=", len(cids))
 	}
@@ -135,21 +164,21 @@ func TestFsGetWriteChunk(t *testing.T) {
 	defer ft.done()
 
 	fc := ft.newFSChnksController()
-	fc.scan()
+	fc.scan(false)
 
-	c, nw, err := fc.getChunkForWrite(context.Background())
+	c, nw, err := fc.getChunkForWrite(context.Background(), 0)
 	if c == nil || !nw || err != nil {
 		t.Fatal("expecting c=nil, nw=true, err=nil, but c=", c, ", nw=", nw, ", err=", err)
 	}
 
-	c, nw, err = fc.getChunkForWrite(context.Background())
+	c, nw, err = fc.getChunkForWrite(context.Background(), 0)
 	if c == nil || nw || err != nil {
 		t.Fatal("expecting c=nil, nw=false, err=nil, but c=", c, ", nw=", nw, ", err=", err)
 	}
 
 	c.Write(context.Background(), records.SrtingsIterator("aaa", "bbb"))
 	c.Sync()
-	c1, nw, err := fc.getChunkForWrite(context.Background())
+	c1, nw, err := fc.getChunkForWrite(context.Background(), c.Id())
 	if c1 == nil || !nw || err != nil || c == c1 {
 		t.Fatal("expecting c=nil, nw=true, err=nil, but c=", c, ", nw=", nw, ", err=", err)
 	}

@@ -90,9 +90,12 @@ type (
 		JournalName() string
 
 		// GetChunkForWrite returns chunk for write operaion, the call could
-		// be cancelled via ctx.
+		// be cancelled via ctx. The excludeCid could contain the chunk.Id which should
+		// not be returned. Providing excludeCid the client indicates that it already
+		// tries to write to the chunk and the operation was not successful, so it should not
+		// be repeated.
 		// ctx == nil is acceptable
-		GetChunkForWrite(ctx context.Context) (chunk.Chunk, error)
+		GetChunkForWrite(ctx context.Context, excludeCid chunk.Id) (chunk.Chunk, error)
 
 		// Chunks returns a sorted list of chunks. ctx can cancel the call. ctx
 		// could be nil.

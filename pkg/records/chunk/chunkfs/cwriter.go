@@ -116,6 +116,10 @@ func (cw *cWrtier) ensureFWriter() error {
 		if err != nil {
 			return err
 		}
+
+		// put 100 to be sure there is a buffer for not blocking signaling routine
+		cw.wSgnlChan = make(chan bool, 100)
+
 		cw.iw, err = newFWriter(fileutil.SetFileExt(cw.fileName, ChnkIndexExt), ChnkWriterBufSize)
 		if err != nil {
 			cw.closeFWritersUnsafe()
@@ -127,9 +131,6 @@ func (cw *cWrtier) ensureFWriter() error {
 			cw.closeFWritersUnsafe()
 			return ErrCorruptedData
 		}
-
-		// put 100 to be sure there is a buffer for not blocking signaling routine
-		cw.wSgnlChan = make(chan bool, 100)
 
 		go func(sc chan bool) {
 			tmr := time.NewTimer(cw.idleTO)
@@ -372,7 +373,7 @@ func (cw *cWrtier) Close() (err error) {
 }
 
 func (cw *cWrtier) closeUnsafe() (err error) {
-	cw.closed = 1
+	atomic.StoreInt32(&cw.closed, 1)
 	return cw.closeFWritersUnsafe()
 }
 

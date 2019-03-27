@@ -167,7 +167,7 @@ func (jc *jrnlController) createNewJournal(jn string, noChunksOk bool) (jrnlHold
 
 	fscc := newFSChnksController(jn, pth, jc.fdPool, jc.JCfg.GetChunkConfig())
 	cc := newChunksController(jn, fscc, jc.adv)
-	cks, _ := fscc.scan()
+	cks, _ := fscc.scan(!noChunksOk)
 	if len(cks) == 0 && !noChunksOk {
 		jc.logger.Info("No chunks found in ", pth, ", skipping the journal ", jn, " creating.")
 		return jrnlHolder{}, nil

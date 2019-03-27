@@ -166,7 +166,7 @@ func (fdp *FdPool) releaseAllByGid(gid uint64) {
 	frp, ok := fdp.frs[gid]
 	if ok {
 		cnt := frp.cleanUp(true)
-		fdp.curSize -= int32(cnt)
+		atomic.AddInt32(&fdp.curSize, -int32(cnt))
 		fdp.freeSem(cnt)
 		delete(fdp.frs, gid)
 	}
@@ -190,7 +190,7 @@ func (fdp *FdPool) Close() error {
 func (fdp *FdPool) clean(all bool) {
 	for nm, frp := range fdp.frs {
 		cnt := frp.cleanUp(all)
-		fdp.curSize -= int32(cnt)
+		atomic.AddInt32(&fdp.curSize, -int32(cnt))
 		fdp.freeSem(cnt)
 		if all {
 			delete(fdp.frs, nm)

@@ -66,8 +66,8 @@ func (cc *chnksController) JournalName() string {
 }
 
 // GetChunkForWrite is part of journal.ChnksController interface
-func (cc *chnksController) GetChunkForWrite(ctx context.Context) (chunk.Chunk, error) {
-	ck, newCk, err := cc.localCC.getChunkForWrite(ctx)
+func (cc *chnksController) GetChunkForWrite(ctx context.Context, excludeCid chunk.Id) (chunk.Chunk, error) {
+	ck, newCk, err := cc.localCC.getChunkForWrite(ctx, excludeCid)
 	if newCk {
 		cc.adv.advertise(cc.name, cc.localCC.getAdvChunks())
 	}

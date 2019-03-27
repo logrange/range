@@ -68,12 +68,14 @@ func scanForJournals(dir string) ([]string, error) {
 }
 
 // scanForChunks scans a journal directory to find out data chunks there
-func scanForChunks(dir string) ([]chunk.Id, error) {
+func scanForChunks(dir string, removeEmpty bool) ([]chunk.Id, error) {
 	res := make([]chunk.Id, 0, 3)
+	toRemove := make([]string, 0, 3)
 	err := filepath.Walk(dir, func(pth string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if info.IsDir() {
 			return nil
 		}
@@ -89,11 +91,43 @@ func scanForChunks(dir string) ([]chunk.Id, error) {
 			return nil
 		}
 
+		if info.Size() == 0 && removeEmpty {
+			toRemove = append(toRemove, pth)
+			return nil
+		}
+
 		res = append(res, cid)
 		return nil
 	})
 
+	for _, cfn := range toRemove {
+		fn := chunkfs.SetChunkDataFileExt(cfn)
+		os.Remove(fn)
+		fn = chunkfs.SetChunkIdxFileExt(cfn)
+		os.Remove(fn)
+	}
+
 	return res, err
+}
+
+func deleteChunkFilesIfEmpty(name string) bool {
+	res := false
+	fn := chunkfs.SetChunkDataFileExt(name)
+	if isFileEmpty(fn) {
+		res = true
+		os.Remove(fn)
+	}
+
+	fn = chunkfs.SetChunkIdxFileExt(name)
+	if res || isFileEmpty(fn) {
+		os.Remove(fn)
+	}
+	return res
+}
+
+func isFileEmpty(fn string) bool {
+	fi, err := os.Stat(fn)
+	return err == nil && fi.Size() == 0
 }
 
 func checkPathExists(path string) (bool, error) {

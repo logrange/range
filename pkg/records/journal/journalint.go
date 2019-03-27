@@ -50,15 +50,19 @@ func (j *journal) Name() string {
 // the it. It can happen when max chunk size is hit.
 func (j *journal) Write(ctx context.Context, rit records.Iterator) (int, Pos, error) {
 	var err error
-	for _, err = rit.Get(ctx); err == nil; {
-		c, err := j.cc.GetChunkForWrite(ctx)
+	var c chunk.Chunk
+	var excludeCid chunk.Id
+	var n int
+	var offs uint32
+	for err == nil {
+		c, err = j.cc.GetChunkForWrite(ctx, excludeCid)
 		if err != nil {
 			return 0, Pos{}, err
 		}
 
 		// If c.Write has an error, it will return n and offs actually written. So if n > 0 let's
 		// consider the operation successful
-		n, offs, err := c.Write(ctx, rit)
+		n, offs, err = c.Write(ctx, rit)
 		if n > 0 {
 			return n, Pos{c.Id(), offs}, nil
 		}
@@ -66,13 +70,20 @@ func (j *journal) Write(ctx context.Context, rit records.Iterator) (int, Pos, er
 		if err != errors.MaxSizeReached {
 			break
 		}
+
+		if c.Id() == excludeCid {
+			j.logger.Error("Ooops, same chunk id=", excludeCid, " was returned twice. Stopping the Write operation with the err=", err)
+			break
+		}
+		excludeCid = c.Id()
+		err = nil
 	}
 	return 0, Pos{}, err
 }
 
 // Sync tells write chunk to be synced. Only known application for it is in tests
 func (j *journal) Sync() {
-	c, _ := j.cc.GetChunkForWrite(context.Background())
+	c, _ := j.cc.GetChunkForWrite(context.Background(), 0)
 	if c != nil {
 		c.Sync()
 	}

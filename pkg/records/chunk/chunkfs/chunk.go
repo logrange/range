@@ -104,21 +104,14 @@ type (
 )
 
 const (
-	ChnkDataHeaderSize  = 4
-	ChnkDataRecMetaSize = ChnkDataHeaderSize * 2
-	ChnkWriterIdleTO    = time.Minute
-	ChnkWriterFlushTO   = 500 * time.Millisecond
+	ChnkDataHeaderSize = 4
+	ChnkWriterIdleTO   = time.Minute
+	ChnkWriterFlushTO  = 500 * time.Millisecond
 
 	ChnkWriterBufSize    = 4 * 4096
 	ChnkReaderBufSize    = 2 * 4096
 	ChnkIdxReaderBufSize = 4096
 	ChnkMaxRecordSize    = ChnkWriterBufSize
-
-	// ChnkChckTruncateOk means that chunk data can be truncated to good size
-	ChnkChckTruncateOk = 1
-
-	// ChnkChckFullScan means that full scan to find last record must be performed
-	ChnkChckFullScan = 2
 
 	ChnkIndexRecSize = 8
 
@@ -248,6 +241,7 @@ func recoverAndNew(ctx context.Context, cfg *Config, fdPool *FdPool, newChunk bo
 	if newChunk {
 		err := EnsureFilesExist(*cfg)
 		if err != nil {
+			log.Error("recoverAndNew(): could not ensure that file ", cfg.FileName, " exists. err=", err)
 			return nil, err
 		}
 

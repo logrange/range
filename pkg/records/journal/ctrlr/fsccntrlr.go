@@ -140,7 +140,7 @@ func newFSChnksController(name, dir string, fdPool *chunkfs.FdPool, chunkCfg chu
 
 func (fc *fsChnksController) ensureInit() {
 	if atomic.LoadInt32(&fc.state) == fsCCStateNew {
-		_, err := fc.scan()
+		_, err := fc.scan(true)
 		if err != nil {
 			fc.logger.Error("ensureInit(): err=", err)
 		}
@@ -153,17 +153,18 @@ func (fc *fsChnksController) String() string {
 
 // scan checks the dir to detect chunk files there and build a list of chunk Ids.
 // It returns the list of chunk Ids that could be advertised (see getAdvChunks)
-func (fc *fsChnksController) scan() ([]chunk.Id, error) {
+func (fc *fsChnksController) scan(removeEmpty bool) ([]chunk.Id, error) {
 	// acquire semaphore for the dir, so to be sure nobody else is goint to make changes there
 	if err := fc.acquireSem(); err != nil {
 		return nil, err
 	}
 	defer fc.releaseSem()
 
-	fc.logger.Debug("scan() invoked")
+	fc.logger.Debug("scan(): invoked removeEmpty=", removeEmpty)
 
-	cks, err := scanForChunks(fc.dir)
+	cks, err := scanForChunks(fc.dir, removeEmpty)
 	if err != nil {
+		fc.logger.Warn("scan(): scanForChunks in ", fc.dir, " returned err=", err)
 		return nil, err
 	}
 
@@ -298,17 +299,19 @@ func (fc *fsChnksController) close() error {
 
 // getChunkForWrite returns last chunk if it is ok for write, or create a new one and
 // returns the new one. If the new one was created it returns true in the second param
-func (fc *fsChnksController) getChunkForWrite(ctx context.Context) (chunk.Chunk, bool, error) {
+func (fc *fsChnksController) getChunkForWrite(ctx context.Context, excludeCid chunk.Id) (chunk.Chunk, bool, error) {
 	ck, err := fc.getLastChunk(ctx)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if ck != nil && ck.Size() < fc.chunkCfg.MaxChunkSize {
+	if ck != nil && ck.Id() != excludeCid {
 		return ck, false, nil
 	}
 
-	ck, err = fc.createChunkForWrite(ctx)
+	fc.logger.Debug("No chunk or its Id is equal to excludeCid=", excludeCid)
+
+	ck, err = fc.createChunkForWrite(ctx, excludeCid)
 	if ck != nil || err != nil {
 		return ck, false, err
 	}
@@ -318,9 +321,10 @@ func (fc *fsChnksController) getChunkForWrite(ctx context.Context) (chunk.Chunk,
 	return ck, true, err
 }
 
-func (fc *fsChnksController) createChunkForWrite(ctx context.Context) (chunk.Chunk, error) {
+func (fc *fsChnksController) createChunkForWrite(ctx context.Context, excludeCid chunk.Id) (chunk.Chunk, error) {
 	// acquire sem
 	if err := fc.acquireSem(); err != nil {
+		fc.logger.Warn("createChunkForWrite(): could not acqure semaphore, err=", err)
 		return nil, err
 	}
 	defer fc.releaseSem()
@@ -331,9 +335,12 @@ func (fc *fsChnksController) createChunkForWrite(ctx context.Context) (chunk.Chu
 	}
 
 	// another call could create the new chunk
-	if ck != nil && ck.Size() < fc.chunkCfg.MaxChunkSize {
+	if ck != nil && ck.Id() != excludeCid {
+		fc.logger.Debug("createChunkForWrite(): found new chunk, which should not be excluded ck.Id()=", ck.Id(), ", excluedCid=", excludeCid)
 		return ck, nil
 	}
+
+	fc.logger.Debug("createChunkForWrite(): No chunk or its Id is equal to excludeCid=", excludeCid)
 
 	cfg := fc.chunkCfg
 	cfg.Id = chunk.NewId()
@@ -473,6 +480,16 @@ func (fc *fsChnksController) syncChunks() {
 				oks++
 			}
 
+			if fci.state == fsChunkStateError {
+				// if it was an attempt to create a file and it is empty, drop it here as unknown
+				fn := chunkfs.MakeChunkFileName(fc.dir, cid)
+				if deleteChunkFilesIfEmpty(fn) {
+					delete(fc.knwnChunks, cid)
+					fc.logger.Warn("Removing file ", fn, " physically, cause it was in fsChunkStateError and empty.")
+				}
+				continue
+			}
+
 			if fci.state != fsChunkStateScanned {
 				continue
 			}
@@ -503,6 +520,7 @@ func (fc *fsChnksController) syncChunks() {
 			sort.Slice(fc.chunks, func(i, j int) bool { return fc.chunks[i].Id() < fc.chunks[j].Id() })
 			close(fc.startingCh)
 			fc.lock.Unlock()
+			fc.logger.Debug("syncChunks() leaving by nothing to create")
 			return
 		}
 
