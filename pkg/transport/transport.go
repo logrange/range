@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"time"
 )
 
 type (
@@ -52,16 +53,17 @@ func NewServerListener(cfg Config) (net.Listener, error) {
 }
 
 func NewClientConn(cfg Config) (net.Conn, error) {
+	timeout := time.Duration(5) * time.Second
 	if !safeBool(cfg.TlsEnabled) {
-		return net.Dial("tcp", cfg.ListenAddr)
+		return net.DialTimeout("tcp", cfg.ListenAddr, timeout)
 	}
 
 	tcfg, err := cfg.getTlsConfig()
 	if err != nil {
 		return nil, err
 	}
-
-	return tls.Dial("tcp", cfg.ListenAddr, tcfg)
+	return tls.DialWithDialer(&net.Dialer{
+		Timeout: timeout}, "tcp", cfg.ListenAddr, tcfg)
 }
 
 //===================== config =====================
