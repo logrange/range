@@ -146,5 +146,6 @@ func (ci *chunkIteratorWrapper) rlock() error {
 func (ci *chunkIteratorWrapper) unlock() {
 	if ci.lock {
 		ci.cw.rwLock.RUnlock()
+		ci.lock = false
 	}
 }
