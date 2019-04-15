@@ -20,7 +20,7 @@ import (
 var (
 	WrongState     = fmt.Errorf("Wrong state, expected another one")
 	MaxSizeReached = fmt.Errorf("Could not perform the write operation. The maximum size of the storage is reached.")
-	NotFound       = fmt.Errorf("The requested object was not found")
+	NotFound       = fmt.Errorf("The requested object is not found")
 	ClosedState    = fmt.Errorf("The component state is closed")
 	IsNotEmpty     = fmt.Errorf("Is not empy")
 	AlreadyExists  = fmt.Errorf("The object already exists")
