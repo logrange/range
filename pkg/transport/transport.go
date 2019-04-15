@@ -93,17 +93,17 @@ func (c *Config) Apply(other *Config) {
 
 func (c *Config) Check() error {
 	if c.ListenAddr == "" {
-		return fmt.Errorf("invalid config; ListenAddr must be non-empty")
+		return fmt.Errorf("ListenAddr must be non-empty")
 	}
 	tlsEnabled := safeBool(c.TlsEnabled)
 	if tlsEnabled {
 		if c.TlsCertFile == "" || c.TlsKeyFile == "" {
-			return fmt.Errorf("invalid config; both TlsCertFile and TlsKeyFile must specified" +
+			return fmt.Errorf("both TlsCertFile and TlsKeyFile must specified" +
 				" when TlsEnabled=%v", tlsEnabled)
 		}
 	}
 	if !tlsEnabled && safeBool(c.Tls2Way) {
-		return fmt.Errorf("invalid config; Tls2Way must 'false' " +
+		return fmt.Errorf("Tls2Way must 'false' " +
 			"when TlsEnabled=%v", tlsEnabled)
 	}
 	return nil
