@@ -74,7 +74,21 @@ type (
 		// the call again. Implementation should guarantee that it will behave
 		// same way after the call as if it is never called.
 		Release()
+
+		// SetBackword allows to change the itearator direction
+		// not all implementations can support it
+		SetBackward(bool)
+
+		// CurrentPos returns an object which describes the current iterator position
+		CurrentPos() IteratorPos
 	}
+
+	// IteratorPos is a current position in the iterated collection
+	IteratorPos interface{}
+)
+
+const (
+	IteratorPosUnknown = 0
 )
 
 func (r Record) MakeCopy() Record {

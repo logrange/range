@@ -111,14 +111,14 @@ func (ci *chunkIteratorWrapper) Release() {
 	ci.unlock()
 }
 
-func (ci *chunkIteratorWrapper) Pos() uint32 {
+func (ci *chunkIteratorWrapper) Pos() int64 {
 	if ci.ensureLock() != nil {
 		return 0
 	}
 	return ci.ci.Pos()
 }
 
-func (ci *chunkIteratorWrapper) SetPos(pos uint32) error {
+func (ci *chunkIteratorWrapper) SetPos(pos int64) error {
 	if err := ci.ensureLock(); err != nil {
 		return err
 	}
@@ -137,6 +137,14 @@ func (ci *chunkIteratorWrapper) Get(ctx context.Context) (records.Record, error)
 		return nil, err
 	}
 	return ci.ci.Get(ctx)
+}
+
+func (ci *chunkIteratorWrapper) SetBackward(bkwd bool) {
+	ci.ci.SetBackward(bkwd)
+}
+
+func (ci *chunkIteratorWrapper) CurrentPos() records.IteratorPos {
+	return ci.ci.Pos()
 }
 
 func (ci *chunkIteratorWrapper) ensureLock() error {

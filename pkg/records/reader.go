@@ -96,6 +96,14 @@ func (bbi *Reader) Release() {
 
 }
 
+func (bbi *Reader) SetBackward(bool) {
+	panic("not supported")
+}
+
+func (bbi *Reader) CurrentPos() IteratorPos {
+	return bbi.offs
+}
+
 // Buf returns underlying buffer
 func (bbi *Reader) Buf() []byte {
 	return bbi.buf

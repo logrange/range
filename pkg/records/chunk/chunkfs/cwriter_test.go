@@ -50,6 +50,14 @@ func (li *lazyIt) Release() {
 
 }
 
+func (li *lazyIt) SetBackward(bool) {
+
+}
+
+func (li *lazyIt) CurrentPos() records.IteratorPos {
+	return 0
+}
+
 func TestCWriterWrite(t *testing.T) {
 	dir, err := ioutil.TempDir("", "cwriterWriteTest")
 	if err != nil {

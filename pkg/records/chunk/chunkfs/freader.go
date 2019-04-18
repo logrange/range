@@ -47,8 +47,6 @@ const (
 	frStateBusy    = 1
 	frStateClosing = 2
 	frStateClosed  = 3
-
-	bufGranularity = 4096
 )
 
 // newFReader constructs new fReader instance
@@ -167,12 +165,16 @@ func (r *fReader) seekToEnd() error {
 	return nil
 }
 
-// smartSeek sets up the file position, but it makes sure that at least bufBottom
-// bytes will be in the buffer. If it needs to re-read the buffer, it tries to fill it from
-// the upper side, but again to be sure that it will have bufBottom bytes to
-// be read from the desired offset in the buffer. The behavior is needed when
-// reading backward is required. So consequitive reads will requests buffers that
-// have less offsets values than previous ones.
+// smartSeek allows to set position to the desired offset, but filling the buffer not
+// for forward reading, but backward instead. bufBottom specify the size of the buffer
+// that should be read after offset, but if consecuitive reads will happen with offset
+// less than specified one, most probably they will hit the buffer again.
+//
+// For example: If the buffer size is 1000 and the desired offset is 5000,
+// with bufBottom == 50, the buffer will be filled with physical offset=4050.
+// The buffer will contain bytes in the range [4050..5050), which includes the
+// offset=5000, the 50 extra bytes will be stored in the buffer, and further backward
+// reads with offset < 5000 will also probably hit the buffer.
 func (r *fReader) smartSeek(offset int64, bufBottom int) error {
 	if bufBottom == 0 || bufBottom > len(r.buf) {
 		return r.seek(offset)
@@ -262,7 +264,7 @@ func (r *fReader) close() error {
 		r.resetBuf()
 		r.fd = nil
 		r.pos = 0
-		r.plState = frStateClosed
+		atomic.StoreInt32(&r.plState, frStateClosed)
 	}
 	return err
 

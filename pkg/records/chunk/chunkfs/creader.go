@@ -26,7 +26,7 @@ type (
 	cReader struct {
 		dr    *fReader
 		ir    *fReader
-		szBuf [ChnkDataHeaderSize]byte
+		szBuf [ChnkIndexRecSize]byte
 	}
 )
 
@@ -36,7 +36,7 @@ type (
 // read
 // it returns the result buffer, which must be next and an error, if any
 func (cr *cReader) readRecord(buf []byte) ([]byte, error) {
-	rdSlice := cr.szBuf[:]
+	rdSlice := cr.szBuf[:ChnkDataHeaderSize]
 
 	// the cur record size
 	_, err := cr.dr.read(rdSlice)
@@ -60,19 +60,19 @@ func (cr *cReader) readRecord(buf []byte) ([]byte, error) {
 }
 
 // setPos expects the index of the record (starting from 0), which will be
-// read next
-func (cr *cReader) setPos(pos uint32) error {
-	if cr.ir == nil {
+// read next. In case of pos is out of the index range, the position for
+// the read will be set to the record after the last one.
+func (cr *cReader) setPos(pos int64) error {
+	if cr.ir == nil || pos < 0 {
 		return nil
 	}
 
-	err := cr.ir.seek(int64(pos) * ChnkIndexRecSize)
+	err := cr.ir.seek(pos * ChnkIndexRecSize)
 	if err != nil {
 		return err
 	}
 
-	var offsArr [ChnkIndexRecSize]byte
-	offsBuf := offsArr[:]
+	offsBuf := cr.szBuf[:ChnkIndexRecSize]
 	_, err = cr.ir.read(offsBuf)
 	if err != nil {
 		if err == io.EOF {
@@ -83,4 +83,45 @@ func (cr *cReader) setPos(pos uint32) error {
 
 	offs := int64(binary.BigEndian.Uint64(offsBuf))
 	return cr.dr.seek(offs)
+}
+
+// setPosBackward sets the read position to index pos. It works as setPos,
+// but allows to fill internal buffers for further reads with position less than
+// pos.
+func (cr *cReader) setPosBackward(pos int64) error {
+	if cr.ir == nil || pos < 0 {
+		return nil
+	}
+
+	off1, err := cr.readDataOffset(pos + 1)
+	if err != nil {
+		return cr.setPos(pos)
+	}
+
+	off, err := cr.readDataOffset(pos)
+	if err != nil {
+		return cr.setPos(pos)
+	}
+
+	return cr.dr.smartSeek(off, int(off1-off))
+}
+
+// readDataOffset reads offset for the data using index file. It fills internal buffer "before"
+// the required pos and is more optimized for backward reading strategy
+func (cr *cReader) readDataOffset(pos int64) (int64, error) {
+	err := cr.ir.smartSeek(int64(pos)*ChnkIndexRecSize, ChnkIndexRecSize)
+	if err != nil {
+		return -1, err
+	}
+
+	offsBuf := cr.szBuf[:ChnkIndexRecSize]
+	_, err = cr.ir.read(offsBuf)
+	if err != nil {
+		if err == io.EOF {
+			err = cr.dr.seekToEnd()
+		}
+		return cr.dr.pos, err
+	}
+
+	return int64(binary.BigEndian.Uint64(offsBuf)), nil
 }

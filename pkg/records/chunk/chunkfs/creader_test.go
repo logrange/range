@@ -127,6 +127,83 @@ func TestCReaderReadByRecords(t *testing.T) {
 	testSlicesEquals(str, []string{"cc", "c1"})
 }
 
+func TestCReaderSetPosBackward(t *testing.T) {
+	dir, err := ioutil.TempDir("", "creaderSetPosBackwardTest")
+	if err != nil {
+		t.Fatal("Could not create new dir err=", err)
+	}
+	defer os.RemoveAll(dir) // clean up
+
+	fn := path.Join(dir, "tst")
+	cw := newCWriter(fn, 0, 1000, 0)
+	defer cw.Close()
+
+	si := records.SrtingsIterator("a", "b", "c")
+	_, _, err = cw.write(nil, si)
+	if err != nil {
+		t.Fatal("could not write data to file ", fn, ", err=", err)
+	}
+	cw.flush()
+
+	dr, _ := newFReader(fn, 10)
+	defer dr.Close()
+
+	ir, _ := newFReader(SetChunkIdxFileExt(fn), 20)
+	defer ir.Close()
+
+	cr := cReader{dr: dr, ir: ir}
+	buf := make([]byte, 2)
+
+	cr.setPosBackward(10)
+	_, err = cr.readRecord(buf)
+	if err != io.EOF {
+		t.Fatal("Expecting io.EOF, but err=", err)
+	}
+
+	err = cr.setPosBackward(1)
+	if err != nil {
+		t.Fatal("Expecting no error, but err=", err)
+	}
+
+	if cr.dr.pos != 10 || cr.dr.r != 5 {
+		t.Fatal("Expecting cr.dr.pos=10, but it is ", cr.dr.pos, " and cr.dr.r=5, but it is ", cr.dr.r)
+	}
+
+	res, err := cr.readRecord(buf)
+	if err != nil || records.ByteArrayToString(res) != "b" {
+		t.Fatal("Expecting nil, but err=", err, " res=", records.ByteArrayToString(res))
+	}
+
+	cr.setPosBackward(0)
+	res, err = cr.readRecord(buf)
+	if err != nil || string(res) != "a" {
+		t.Fatal("Expecting a, but err=", err, " res=", string(res))
+	}
+
+	if cr.dr.pos != 10 || cr.dr.r != 5 {
+		t.Fatal("Expecting cr.dr.pos != 10, but it is ", cr.dr.pos, " and cr.dr.r=5, but it is ", cr.dr.r)
+	}
+
+	_, err = cr.readRecord(buf)
+	_, err = cr.readRecord(buf)
+	_, err = cr.readRecord(buf)
+	if err != io.EOF {
+		t.Fatal("Expecting io.EOF, but err=", err)
+	}
+
+	cr.setPosBackward(2)
+	res, err = cr.readRecord(buf)
+	if err != nil || string(res) != "c" {
+		t.Fatal("Expecting c, but err=", err, " res=", string(res))
+	}
+
+	cr.setPosBackward(1)
+	res, err = cr.readRecord(buf)
+	if err != nil || string(res) != "b" {
+		t.Fatal("Expecting b, but err=", err, " res=", string(res))
+	}
+}
+
 func testSlicesEquals(a, b []string) bool {
 	if (a == nil) != (b == nil) {
 		return false

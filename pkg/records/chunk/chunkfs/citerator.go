@@ -23,14 +23,31 @@ import (
 )
 
 type (
+	// cIterator implements chunk.Iterator and it allows to iterate over records
+	// forth (forward) and back (backward). The default iteration direction is forward.
+	// The iterator has current position, which could be in the range [-1 .. Count] where
+	// the Count is number of records in the chunk.
+	//
+	// Get's behavior together with the current iterator position could give different results
+	// depending on the direction of the iterator. The following table shows what Get() will return:
+	//
+	//      pos    |    direction    |  Get returns:
+	// ------------+-----------------+---------------
+	//      < 0    |     FORWARD     | First record
+	//      < 0    |     BACKWARD    | io.EOF
+	//   >= Count  |     FORWARD     | io.EOF
+	//   >= Count  |     BACKWARD    | Last record
+	// [0 .. Count)|       ANY       | The record at the pos
+	//
 	cIterator struct {
 		gid    uint64
 		fdPool *FdPool
 		cr     cReader
 		cnt    *uint32
-		pos    uint32
+		pos    int64
 		buf    []byte
 		res    []byte
+		bkwd   bool
 
 		// cached values to acquire readers
 		doffs int64
@@ -43,10 +60,12 @@ func newCIterator(gid uint64, fdPool *FdPool, count *uint32, buf []byte) *cItera
 	ci.fdPool = fdPool
 	ci.cnt = count
 	ci.pos = 0
+	ci.bkwd = false
 	ci.buf = buf[:cap(buf)]
 	return ci
 }
 
+// Close is part of io.Closer
 func (ci *cIterator) Close() error {
 	ci.Release()
 	ci.fdPool = nil
@@ -54,10 +73,15 @@ func (ci *cIterator) Close() error {
 	return nil
 }
 
+// Next is part of records.Iterator
 func (ci *cIterator) Next(ctx context.Context) {
 	_, err := ci.Get(ctx)
 	if err == nil {
-		ci.pos++
+		if ci.bkwd {
+			ci.SetPos(ci.pos - 1)
+		} else {
+			ci.pos++
+		}
 	}
 	ci.res = nil
 }
@@ -77,6 +101,7 @@ func (ci *cIterator) Get(ctx context.Context) (records.Record, error) {
 		return nil, err
 	}
 
+	ci.doffs = ci.cr.dr.getNextReadPos()
 	ci.res, err = ci.cr.readRecord(ci.buf)
 	if err != nil {
 		ci.Release()
@@ -85,9 +110,9 @@ func (ci *cIterator) Get(ctx context.Context) (records.Record, error) {
 	return ci.res, err
 }
 
+// Release is part of chunk.Iterator
 func (ci *cIterator) Release() {
 	if ci.cr.dr != nil {
-		ci.doffs = ci.cr.dr.getNextReadPos()
 		ci.fdPool.release(ci.cr.dr)
 		ci.cr.dr = nil
 	}
@@ -99,30 +124,59 @@ func (ci *cIterator) Release() {
 	ci.res = nil
 }
 
-func (ci *cIterator) Pos() uint32 {
+func (ci *cIterator) CurrentPos() records.IteratorPos {
+	return ci.Pos()
+}
+
+// Pos is part of chunk.Iterator
+func (ci *cIterator) Pos() int64 {
 	return ci.pos
 }
 
-func (ci *cIterator) SetPos(pos uint32) error {
+// SetPos sets the cIterator next reading position. The pos is allowed to be in the
+// range [-1 .. Count] where Count is the number of records in the chunk
+func (ci *cIterator) SetPos(pos int64) error {
 	if pos == ci.pos {
 		return nil
 	}
 
-	cnt := atomic.LoadUint32(ci.cnt)
+	cnt := int64(atomic.LoadUint32(ci.cnt))
 	if pos > cnt {
 		pos = cnt
 	}
 
-	if ci.pos < pos {
-		ci.doffs = 0
+	if pos < 0 {
+		pos = -1
 	}
+
 	ci.pos = pos
 	ci.res = nil
-	return ci.cr.setPos(pos)
+
+	if ci.bkwd {
+		return ci.cr.setPosBackward(ci.pos)
+	}
+
+	return ci.cr.setPos(ci.pos)
+}
+
+// SetBackward is part of chunk.Iterator
+func (ci *cIterator) SetBackward(bkwd bool) {
+	ci.bkwd = bkwd
 }
 
 func (ci *cIterator) ensureFileReader(ctx context.Context) error {
-	if ci.pos < 0 || ci.pos >= atomic.LoadUint32(ci.cnt) {
+	cnt := int64(atomic.LoadUint32(ci.cnt))
+	if ci.bkwd {
+		if ci.pos >= cnt {
+			ci.SetPos(cnt - 1)
+		}
+	} else {
+		if ci.pos < 0 {
+			ci.SetPos(0)
+		}
+	}
+
+	if ci.pos < 0 || ci.pos >= cnt {
 		return io.EOF
 	}
 

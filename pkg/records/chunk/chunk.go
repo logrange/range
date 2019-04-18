@@ -103,7 +103,7 @@ type (
 
 		// Pos returns the current iterator position within the chunk. It could
 		// return value in [0..Chunk.Count()) range
-		Pos() uint32
+		Pos() int64
 
 		// SetPos sets the current position within the chunk. The pos param must be in
 		// between [0..Chunk.Count()].
@@ -111,7 +111,7 @@ type (
 		// Setting pos to Chunk.Count() value, causes that the Get() function will
 		// return (nil, io.EOF) or the new record, which has been added to the
 		// chunk after the SetPos() call, but before the Get() call.
-		SetPos(pos uint32) error
+		SetPos(pos int64) error
 	}
 
 	// Listener an interface which can be used for receiving some chunk

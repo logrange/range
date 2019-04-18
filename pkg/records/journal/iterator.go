@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/logrange/range/pkg/records"
 	"github.com/logrange/range/pkg/records/chunk"
@@ -25,17 +26,33 @@ import (
 
 type (
 	iterator struct {
-		j   *journal
-		pos Pos
-		ci  chunk.Iterator
+		j     *journal
+		pos   Pos
+		ci    chunk.Iterator
+		bkwrd bool
 	}
 )
+
+func (it *iterator) SetBackward(bkwrd bool) {
+	if it.bkwrd == bkwrd {
+		return
+	}
+	it.bkwrd = bkwrd
+	if it.ci != nil {
+		it.ci.SetBackward(it.bkwrd)
+	}
+}
 
 func (it *iterator) Next(ctx context.Context) {
 	it.Get(ctx)
 	if it.ci != nil {
 		it.ci.Next(ctx)
-		it.pos.Idx = it.ci.Pos()
+		pos := it.ci.Pos()
+		if pos < 0 {
+			it.advanceChunk()
+			return
+		}
+		it.pos.Idx = uint32(pos)
 	}
 }
 
@@ -56,6 +73,10 @@ func (it *iterator) Get(ctx context.Context) (records.Record, error) {
 	return rec, err
 }
 
+func (it *iterator) CurrentPos() records.IteratorPos {
+	return it.Pos()
+}
+
 func (it *iterator) Pos() Pos {
 	return it.pos
 }
@@ -70,7 +91,7 @@ func (it *iterator) SetPos(pos Pos) {
 	}
 
 	if it.ci != nil {
-		it.ci.SetPos(pos.Idx)
+		it.ci.SetPos(int64(pos.Idx))
 	}
 	it.pos = pos
 }
@@ -96,8 +117,13 @@ func (it *iterator) closeChunk() {
 
 func (it *iterator) advanceChunk() error {
 	it.closeChunk()
-	it.pos.CId++
-	it.pos.Idx = 0
+	if it.bkwrd {
+		it.pos.CId--
+		it.pos.Idx = math.MaxUint32
+	} else {
+		it.pos.CId++
+		it.pos.Idx = 0
+	}
 	return it.ensureChkIt()
 }
 
@@ -107,7 +133,13 @@ func (it *iterator) ensureChkIt() error {
 		return nil
 	}
 
-	chk := it.j.getChunkById(it.pos.CId)
+	var chk chunk.Chunk
+	if it.bkwrd {
+		chk = it.j.getChunkByIdOrLess(it.pos.CId)
+	} else {
+		chk = it.j.getChunkByIdOrGreater(it.pos.CId)
+	}
+
 	if chk == nil {
 		return io.EOF
 	}
@@ -115,7 +147,9 @@ func (it *iterator) ensureChkIt() error {
 	if chk.Id() < it.pos.CId {
 		it.pos.CId = chk.Id()
 		it.pos.Idx = chk.Count()
-		return io.EOF
+		if !it.bkwrd {
+			return io.EOF
+		}
 	}
 
 	if chk.Id() > it.pos.CId {
@@ -128,9 +162,9 @@ func (it *iterator) ensureChkIt() error {
 	if err != nil {
 		return err
 	}
-
-	it.ci.SetPos(it.pos.Idx)
-	it.pos.Idx = it.ci.Pos()
+	it.ci.SetBackward(it.bkwrd)
+	it.ci.SetPos(int64(it.pos.Idx))
+	it.pos.Idx = uint32(it.ci.Pos())
 	return nil
 }
 
