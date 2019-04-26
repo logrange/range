@@ -2,8 +2,9 @@ language: go
 go:
  - 1.11.x
 
-before_script:
- - go get -t -v -u ./...
+os:
+ - linux
+ - osx
 
 script:
- - go test -v ./...
+ - env GO111MODULE=on go test -v ./...
