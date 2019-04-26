@@ -23,6 +23,10 @@ import (
 
 type (
 	// MMFile struct provides file memory mapping and the BStorage interface implementation
+	//
+	// NOTE: the object is Read-Write go-rouitne safe. It means that the methods Read and
+	// Write could be called for not overlapping bytes regions from different go-routines
+	// at the same time, but not other methods for the object calls are allowed.
 	MMFile struct {
 		f    *os.File
 		mf   mmap.MMap

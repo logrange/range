@@ -24,9 +24,9 @@ import (
 
 	"github.com/logrange/range/pkg/kv"
 
-	client "go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/embed"
-	"go.etcd.io/etcd/mvcc/mvccpb"
+	client "github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/embed"
+	"github.com/coreos/etcd/mvcc/mvccpb"
 )
 
 type clientStorage struct {

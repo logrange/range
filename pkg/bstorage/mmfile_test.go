@@ -15,10 +15,13 @@
 package bstorage
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -126,4 +129,58 @@ func TestGrowMMFile(t *testing.T) {
 		t.Fatal("Expected ", buf, ", but read ", buf2, ", n=", n, ", err=", err)
 	}
 	mmf.Close()
+}
+
+func TestParrallelMMFile(t *testing.T) {
+	dir, err := ioutil.TempDir("", "TestParrallelMMFile")
+	if err != nil {
+		t.Fatal("Could not create new dir err=", err)
+	}
+	defer os.RemoveAll(dir) // clean up
+
+	fsz := int64(40960)
+	fn := path.Join(dir, "testFile2")
+	mmf, err := NewMMFile(fn, fsz)
+	if err != nil {
+		t.Fatal("Could not open the file ", fn, " first time err=", err)
+	}
+	defer mmf.Close()
+
+	var wg sync.WaitGroup
+	var errs int32
+
+	for i := 0; i < 640; i++ {
+		wg.Add(1)
+		go func(pid int) {
+			buf := make([]byte, 64)
+			buf1 := make([]byte, 64)
+			for j, _ := range buf {
+				buf[j] = byte(pid)
+			}
+			for i := 0; i < 500; i++ {
+				n, err := mmf.Write(int64(pid*64), buf)
+				if n != len(buf) || err != nil {
+					fmt.Println("Error when write n=", n, ", err=", err)
+					atomic.AddInt32(&errs, 1)
+				}
+
+				n, err = mmf.Read(int64(pid*64), buf1)
+				if n != len(buf) || err != nil {
+					fmt.Println("Error when read n=", n, ", err=", err)
+					atomic.AddInt32(&errs, 1)
+				}
+				if !reflect.DeepEqual(buf, buf1) {
+					fmt.Println("Error buf=", buf, ", buf1=", buf1)
+					atomic.AddInt32(&errs, 1)
+					break
+				}
+			}
+
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	if atomic.LoadInt32(&errs) != 0 {
+		t.Fatal(" errs=", atomic.LoadInt32(&errs))
+	}
 }
