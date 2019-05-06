@@ -40,17 +40,19 @@ func TestOpenCloseMMFile(t *testing.T) {
 	}
 
 	buf := []byte{1, 2, 3, 4, 5}
-	n, err := mmf.Write(12345, buf)
-	if n != len(buf) || err != nil {
+	res, err := mmf.Buffer(12345, len(buf))
+	if err != nil {
 		mmf.Close()
-		t.Fatal("offs=12345 Wrong n=", n, " which should be ", len(buf), ", or err=", err)
+		t.Fatal("offs=12345 err=", err)
 	}
+	copy(res, buf)
 
-	n, err = mmf.Write(mmf.Size()-2, buf)
-	if n != 2 || err != nil {
+	res, err = mmf.Buffer(mmf.Size()-2, len(buf))
+	if len(res) != 2 || err != nil {
 		mmf.Close()
-		t.Fatal("offs=Size-2 Wrong n=", n, " which should be 2, or err=", err)
+		t.Fatal("offs=Size-2 Wrong n=", len(res), " which should be 2, or err=", err)
 	}
+	copy(res, buf)
 
 	mmf.Close()
 	if mmf.Size() != -1 {
@@ -67,15 +69,14 @@ func TestOpenCloseMMFile(t *testing.T) {
 		t.Fatal("The mmapped file size must be ", fsz, ", but it is ", mmf.Size())
 	}
 
-	buf2 := make([]byte, 2*len(buf))
-	n, err = mmf.Read(12345, buf2)
-	if err != nil || n != len(buf2) || !reflect.DeepEqual(buf, buf2[:len(buf)]) {
-		t.Fatal("Expected ", buf, ", but read ", buf2, ", n=", n, ", err=", err)
+	res, err = mmf.Buffer(12345, len(buf))
+	if err != nil || len(res) != len(buf) || !reflect.DeepEqual(buf, res) {
+		t.Fatal("Expected ", buf, ", but read ", res, ", n=", len(res), ", err=", err)
 	}
 
-	n, err = mmf.Read(mmf.Size()-3, buf2)
-	if err != nil || n != 3 || !reflect.DeepEqual(buf[:2], buf2[1:3]) {
-		t.Fatal("Expected ", buf[:2], ", but read ", buf2[1:3], ", n=", n, ", err=", err)
+	res, err = mmf.Buffer(mmf.Size()-3, len(buf))
+	if err != nil || len(res) != 3 || !reflect.DeepEqual(buf[:2], res[1:3]) {
+		t.Fatal("Expected ", buf[:2], ", but read ", res[1:3], ", n=", len(res), ", err=", err)
 	}
 }
 
@@ -94,7 +95,8 @@ func TestGrowMMFile(t *testing.T) {
 	}
 
 	buf := []byte{1, 2, 3, 4, 5}
-	n, err := mmf.Write(4093, buf)
+	res, err := mmf.Buffer(4093, len(buf))
+	n := copy(res, buf)
 	if n != len(buf) || err != nil {
 		mmf.Close()
 		t.Fatal("offs=4093 Wrong n=", n, " which should be ", len(buf), ", or err=", err)
@@ -123,10 +125,9 @@ func TestGrowMMFile(t *testing.T) {
 		t.Fatal("The file size must be ", 20*4096, ", but it is ", mmf.Size())
 	}
 
-	buf2 := make([]byte, len(buf))
-	n, err = mmf.Read(4093, buf2)
-	if err != nil || n != len(buf2) || !reflect.DeepEqual(buf, buf2) {
-		t.Fatal("Expected ", buf, ", but read ", buf2, ", n=", n, ", err=", err)
+	res, err = mmf.Buffer(4093, len(buf))
+	if err != nil || len(res) != len(buf) || !reflect.DeepEqual(buf, res) {
+		t.Fatal("Expected ", buf, ", but read ", res, ", n=", len(res), ", err=", err)
 	}
 	mmf.Close()
 }
@@ -153,24 +154,25 @@ func TestParrallelMMFile(t *testing.T) {
 		wg.Add(1)
 		go func(pid int) {
 			buf := make([]byte, 64)
-			buf1 := make([]byte, 64)
 			for j, _ := range buf {
 				buf[j] = byte(pid)
 			}
 			for i := 0; i < 500; i++ {
-				n, err := mmf.Write(int64(pid*64), buf)
-				if n != len(buf) || err != nil {
-					fmt.Println("Error when write n=", n, ", err=", err)
+				res, err := mmf.Buffer(int64(pid*64), len(buf))
+				if len(res) != len(buf) || err != nil {
+					fmt.Println("Error when write n=", len(res), ", err=", err)
+					atomic.AddInt32(&errs, 1)
+				}
+				copy(res, buf)
+
+				res, err = mmf.Buffer(int64(pid*64), len(buf))
+				if len(res) != len(buf) || err != nil {
+					fmt.Println("Error when read n=", len(res), ", err=", err)
 					atomic.AddInt32(&errs, 1)
 				}
 
-				n, err = mmf.Read(int64(pid*64), buf1)
-				if n != len(buf) || err != nil {
-					fmt.Println("Error when read n=", n, ", err=", err)
-					atomic.AddInt32(&errs, 1)
-				}
-				if !reflect.DeepEqual(buf, buf1) {
-					fmt.Println("Error buf=", buf, ", buf1=", buf1)
+				if !reflect.DeepEqual(buf, res) {
+					fmt.Println("Error buf=", buf, ", res=", res)
 					atomic.AddInt32(&errs, 1)
 					break
 				}

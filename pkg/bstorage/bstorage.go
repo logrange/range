@@ -13,31 +13,30 @@
 // limitations under the License.
 
 /*
- bstorage package provides BStorage interface for accessing to a byte-storage.
+ bstorage package provides Bytes interface for accessing to a byte-storage.
  It can be used for building data indexes on top of filesystem and store trees into
- a file via the BStorage interface.
+ a file via the Bytes interface.
 */
 package bstorage
 
+import "io"
+
 type (
-	// BStorage interface provides an access to a byte storage
-	BStorage interface {
+	// Bytes interface provides an access to a byte storage
+	Bytes interface {
+		io.Closer
+
 		// Size returns the current storage size.
 		Size() int64
 
 		// Grow allows to increase the storage size.
 		Grow(newSize int64) error
 
-		// Read allows to read bytes by offset offs to the buffer buf.
-		// offs must be in the range [0..Size). If buf is bigger than the data
-		// is available the method will read as much as available.
-		// The function returns number of bytes read, or an error, but not both.
-		Read(offs int64, buf []byte) (int, error)
-
-		// Write writes the data from buf to the storage starting by offs.
-		// offs must be in the range [0..Size). If the buf is bigger than the
-		// region or it is out of tge size range, the smaller amount will be written.
-		// The function returns number of bytes written or an error, if any.
-		Write(offs int64, buf []byte) (int, error)
+		// Buffer returns a segment of the Bytes storage as a the slice.
+		// The slice can be read and written. The data written to the slice will be
+		// saved in the Bytes buffer. Different goroutines are allowed
+		// to request not overlapping buffers. Writing to the same segment
+		// from different go routines causes unpredictable result.
+		Buffer(offs int64, size int) ([]byte, error)
 	}
 )

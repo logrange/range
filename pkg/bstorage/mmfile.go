@@ -22,12 +22,13 @@ import (
 )
 
 type (
-	// MMFile struct provides file memory mapping and the BStorage interface implementation
+	// MMFile struct provides file memory mapping and the Bytes interface implementation
 	//
 	// NOTE: the object is Read-Write go-rouitne safe. It means that the methods Read and
 	// Write could be called for not overlapping bytes regions from different go-routines
 	// at the same time, but not other methods for the object calls are allowed.
 	MMFile struct {
+		fn   string
 		f    *os.File
 		mf   mmap.MMap
 		size int64
@@ -76,6 +77,7 @@ func NewMMFile(fname string, size int64) (*MMFile, error) {
 	}
 
 	mmf := new(MMFile)
+	mmf.fn = fname
 	mmf.f = f
 	mmf.mf = mf
 	mmf.size = size
@@ -111,6 +113,12 @@ func (mmf *MMFile) Grow(newSize int64) (err error) {
 	}
 
 	mmf.unmap()
+
+	if err = mmf.f.Truncate(newSize); err != nil {
+		mmf.Close()
+		return errors.Wrapf(err, "could not extend file size to %d ", newSize)
+	}
+
 	mmf.mf, err = mmap.MapRegion(mmf.f, int(newSize), mmap.RDWR, 0, 0)
 	if err != nil {
 		mmf.Close()
@@ -120,36 +128,25 @@ func (mmf *MMFile) Grow(newSize int64) (err error) {
 	return
 }
 
-// Read reads data from the offset provided. offs must be in the range [0..Size). If
-// buf is bigger than the data is available the method will read as much as available.
-// Returns number of bytes read, or an error, but not both.
-func (mmf *MMFile) Read(offs int64, buf []byte) (int, error) {
+// Buffer returns Mapped memory slice to be read and written.
+func (mmf *MMFile) Buffer(offs int64, size int) ([]byte, error) {
 	if offs < 0 || offs >= mmf.size {
-		return 0, fmt.Errorf("offset=%d out of bounds [0..%d]", offs, mmf.size-1)
+		return nil, fmt.Errorf("offset=%d out of bounds [0..%d]", offs, mmf.size-1)
 	}
 
-	// don't support big files so far
 	idx := int(offs)
-	if len(buf)+idx >= int(mmf.size) {
-		buf = buf[:int(mmf.size)-idx]
+	if idx+size >= int(mmf.size) {
+		size = int(mmf.size - offs)
 	}
 
-	return copy(buf, mmf.mf[idx:]), nil
+	return mmf.mf[idx : idx+size], nil
 }
 
-// Write writes the data from buf to offs. offs must be in the range [0..Size).
-// if the buf is bigger than the region or it out of the mapped size range, the
-// smaller amount will be written. The function returns number of bytes written
-// or an error, if any.
-func (mmf *MMFile) Write(offs int64, buf []byte) (int, error) {
-	if offs < 0 || offs >= mmf.size {
-		return 0, fmt.Errorf("offset=%d out of bounds [0..%d]", offs, mmf.size-1)
+func (mmf *MMFile) String() string {
+	if mmf.f != nil {
+		return fmt.Sprintf("MMFile: {fn=%s, f=\"opened\", size=%d}", mmf.fn, mmf.size)
 	}
-
-	if offs+int64(len(buf)) >= mmf.size {
-		buf = buf[:int(mmf.size-offs)]
-	}
-	return copy(mmf.mf[int(offs):], buf), nil
+	return fmt.Sprintf("MMFile{fn=%s, f=\"closed\", size=%d}", mmf.fn, mmf.size)
 }
 
 func (mmf *MMFile) unmap() {

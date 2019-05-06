@@ -15,6 +15,8 @@
 package chunk
 
 import (
+	"context"
+	"github.com/logrange/range/pkg/records"
 	"testing"
 	"time"
 )
@@ -67,9 +69,42 @@ func TestParsId(t *testing.T) {
 	}
 }
 
-func TestFormatßId(t *testing.T) {
+func TestFormatId(t *testing.T) {
 	s := Id(1).String()
 	if "0000000000000001" != s {
 		t.Fatal("Unexpected Id value=", s)
 	}
 }
+
+func TestFindChunkById(t *testing.T) {
+	testFindChunkById(t, Chunks{}, 123, -1)
+	testFindChunkById(t, Chunks{&fakeChunk{1}}, 123, -1)
+	testFindChunkById(t, Chunks{&fakeChunk{1123}}, 123, -1)
+	testFindChunkById(t, Chunks{&fakeChunk{1}, &fakeChunk{2}, &fakeChunk{3}}, 1, 0)
+	testFindChunkById(t, Chunks{&fakeChunk{1}, &fakeChunk{2}, &fakeChunk{3}}, 3, 2)
+	testFindChunkById(t, Chunks{&fakeChunk{1}, &fakeChunk{2}, &fakeChunk{3}}, 4, -1)
+	testFindChunkById(t, Chunks{&fakeChunk{10}, &fakeChunk{20}, &fakeChunk{30}}, 1, -1)
+}
+
+func testFindChunkById(t *testing.T, chks Chunks, cid Id, pos int) {
+	res := FindChunkById(chks, cid)
+	if res != pos {
+		t.Fatal(" for chunks ", chks, " the resuls of search cid=", cid, " is ", res, ", but expected was ", pos)
+	}
+}
+
+type fakeChunk struct {
+	id Id
+}
+
+func (fc *fakeChunk) Close() error { panic("not supported"); return nil }
+func (fc *fakeChunk) Id() Id       { return fc.id }
+func (fc *fakeChunk) Write(ctx context.Context, it records.Iterator) (int, uint32, error) {
+	panic("not supported")
+	return 0, 0, nil
+}
+func (fc *fakeChunk) Sync()                       { panic("not supported") }
+func (fc *fakeChunk) Iterator() (Iterator, error) { panic("not supported"); return nil, nil }
+func (fc *fakeChunk) Size() int64                 { panic("not supported"); return 0 }
+func (fc *fakeChunk) Count() uint32               { panic("not supported"); return 0 }
+func (fc *fakeChunk) AddListener(lstnr Listener)  { panic("not supported") }
