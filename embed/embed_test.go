@@ -16,6 +16,7 @@ package embed
 
 import (
 	"context"
+	"github.com/logrange/range/pkg/records/journal"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -47,7 +48,7 @@ func TestSimple(t *testing.T) {
 		t.Fatal("Write err=", err)
 	}
 	j.Sync()
-	it := j.Iterator()
+	it := journal.NewJIterator(j)
 	r, _ := it.Get(context.Background())
 	r = r.MakeCopy()
 	it.Next(context.Background())
