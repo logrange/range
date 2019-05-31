@@ -25,24 +25,24 @@ func TestExtendWriter(t *testing.T) {
 	w.Init(10, &Pool{})
 	buf := []byte{1, 2, 3, 4, 5, 6, 7}
 	w.Write(buf)
-	if w.pos != len(buf) || len(w.buf) != 10 || !reflect.DeepEqual(buf, w.Buf()) {
+	if w.pos != len(buf) || len(w.buf) < 10 || !reflect.DeepEqual(buf, w.Buf()) {
 		t.Fatal("something goes wrong ", w)
 	}
 
 	w.Write(buf)
-	if w.pos != 2*len(buf) || len(w.buf) != 27 || !reflect.DeepEqual(buf, w.Buf()[len(buf):]) {
+	if w.pos != 2*len(buf) || len(w.buf) < 27 || !reflect.DeepEqual(buf, w.Buf()[len(buf):]) {
 		t.Fatal("something goes wrong ", w, cap(w.buf))
 	}
 	w.Write(buf)
 	w.Write(buf)
-	if w.pos != 4*len(buf) || len(w.buf) != 61 || !reflect.DeepEqual(buf, w.Buf()[:len(buf)]) {
+	if w.pos != 4*len(buf) || len(w.buf) < 61 || !reflect.DeepEqual(buf, w.Buf()[:len(buf)]) {
 		t.Fatal("something goes wrong ", w)
 	}
 
 	ln := cap(w.buf)
 	var bigData [1000]byte
 	w.Write(bigData[:])
-	if len(w.buf) != len(bigData)+2*ln || w.pos != 4*len(buf)+len(bigData) {
+	if len(w.buf) < len(bigData)+2*ln || w.pos != 4*len(buf)+len(bigData) {
 		t.Fatal("something goes wrong ", len(w.buf), " ", w.pos)
 	}
 
