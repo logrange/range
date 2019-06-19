@@ -68,6 +68,7 @@ func (j *journal) Write(ctx context.Context, rit records.Iterator) (int, Pos, er
 		if err != errors.MaxSizeReached {
 			break
 		}
+		c.Sync()
 
 		if c.Id() == excludeCid {
 			j.logger.Error("Ooops, same chunk id=", excludeCid, " was returned twice. Stopping the Write operation with the err=", err)
