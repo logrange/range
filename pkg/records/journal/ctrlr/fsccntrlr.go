@@ -318,6 +318,9 @@ func (fc *fsChnksController) getChunkForWrite(ctx context.Context, excludeCid ch
 
 	// must wait till constructed
 	ck, err = fc.getLastChunk(ctx)
+	if ck == nil && err == nil {
+		err = fmt.Errorf("internal error, could not create new chunk for the write op. Not enough resources?")
+	}
 	return ck, true, err
 }
 
