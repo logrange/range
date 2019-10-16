@@ -26,6 +26,8 @@ github.com/grpc-ecosystem/grpc-gateway v1.8.5/go.mod h1:vNeuVxBJEsws4ogUvrchl83t
 github.com/jonboulle/clockwork v0.1.0/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
 github.com/jrivets/gorivets v0.0.0-20170920013151-fa5c087ad733/go.mod h1:hUIj1CfVnPHX/LjgKnPc76n7YcD7M5lRevqf/xmVG6U=
 github.com/jrivets/log4g v0.0.0-20171008071556-0d3a418ba12a/go.mod h1:+sVYU1XiC4uD2QWu64F6dLvoGoRveSMC9auxIxl8byk=
+github.com/jrivets/log4g v0.0.0-20191016233753-c02c5046dc98 h1:/8lpZ4nT7pCaYtNTf88i1WdRkSLNXlKHHXU51/WRigM=
+github.com/jrivets/log4g v0.0.0-20191016233753-c02c5046dc98/go.mod h1:+sVYU1XiC4uD2QWu64F6dLvoGoRveSMC9auxIxl8byk=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/konsorten/go-windows-terminal-sequences v1.0.1/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=

@@ -20,7 +20,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway v1.8.5 // indirect
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/jrivets/gorivets v0.0.0-20170920013151-fa5c087ad733
-	github.com/jrivets/log4g v0.0.0-20171008071556-0d3a418ba12a
+	github.com/jrivets/log4g v0.0.0-20191016233753-c02c5046dc98
 	github.com/logrange/linker v0.0.0-20190313060137-63e2b15b4d15
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v0.9.2 // indirect
