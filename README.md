@@ -81,4 +81,4 @@ This project is licensed under the Apache Version 2.0 License - see the [LICENSE
 
 ## Acknowledgments
 
-* GoLang IDE by [JetBrains](https://www.jetbrains.com/go/) is used for the code development
+* GoLand IDE by [JetBrains](https://www.jetbrains.com/go/) is used for the code development
