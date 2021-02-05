@@ -25,16 +25,17 @@ import (
 
 type (
 	Config struct {
-		TlsEnabled  *bool
-		Tls2Way     *bool
-		TlsCAFile   string
-		TlsKeyFile  string
-		TlsCertFile string
-		ListenAddr  string
+		TlsEnabled    *bool
+		Tls2Way       *bool // true = server verifies a client
+		TlsSkipVerify *bool // true = client skips verifying a server (e.g. hostname match)
+		TlsCAFile     string
+		TlsKeyFile    string
+		TlsCertFile   string
+		ListenAddr    string
 	}
 
 	x509Certs struct {
-		keyPair tls.Certificate
+		keyPair  tls.Certificate
 		rootPool *x509.CertPool
 	}
 )
@@ -70,12 +71,13 @@ func NewClientConn(cfg Config) (net.Conn, error) {
 
 func (c *Config) Apply(other *Config) {
 	if other.TlsEnabled != nil {
-		b := *other.TlsEnabled
-		c.TlsEnabled = &b
+		c.TlsEnabled = boolPtr(*other.TlsEnabled)
 	}
 	if other.Tls2Way != nil {
-		b := *other.Tls2Way
-		c.Tls2Way = &b
+		c.Tls2Way = boolPtr(*other.Tls2Way)
+	}
+	if other.TlsSkipVerify != nil {
+		c.TlsSkipVerify = boolPtr(*other.TlsSkipVerify)
 	}
 	if other.TlsCertFile != "" {
 		c.TlsCertFile = other.TlsCertFile
@@ -98,12 +100,12 @@ func (c *Config) Check() error {
 	tlsEnabled := safeBool(c.TlsEnabled)
 	if tlsEnabled {
 		if c.TlsCertFile == "" || c.TlsKeyFile == "" {
-			return fmt.Errorf("both TlsCertFile and TlsKeyFile must specified" +
+			return fmt.Errorf("both TlsCertFile and TlsKeyFile must specified"+
 				" when TlsEnabled=%v", tlsEnabled)
 		}
 	}
 	if !tlsEnabled && safeBool(c.Tls2Way) {
-		return fmt.Errorf("Tls2Way must 'false' " +
+		return fmt.Errorf("Tls2Way must 'false' "+
 			"when TlsEnabled=%v", tlsEnabled)
 	}
 	return nil
@@ -135,7 +137,8 @@ func (c *Config) getTlsConfig() (*tls.Config, error) {
 
 	return &tls.Config{Certificates: certs, RootCAs: roots, ClientAuth: auth, ClientCAs: roots,
 		MinVersion: tls.VersionTLS12, PreferServerCipherSuites: true,
-		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384},}, nil
+		CipherSuites:       []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384},
+		InsecureSkipVerify: safeBool(c.TlsSkipVerify)}, nil
 }
 
 func (c *Config) readX509Certs() (*x509Certs, error) {
@@ -172,6 +175,7 @@ func (c Config) String() string {
 	return fmt.Sprint(
 		"\n\tTlsEnabled=", safeBool(c.TlsEnabled),
 		"\n\tTls2Way=", safeBool(c.Tls2Way),
+		"\n\tTlsSkipVerify=", safeBool(c.TlsSkipVerify),
 		"\n\tTlsCAFile=", c.TlsCAFile,
 		"\n\tTlsKeyFile=", c.TlsKeyFile,
 		"\n\tTlsCertFile=", c.TlsCertFile,

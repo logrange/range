@@ -3,6 +3,7 @@ package transport
 import (
 	"bufio"
 	"fmt"
+	"github.com/pkg/errors"
 	"io"
 	"net"
 	"path/filepath"
@@ -15,70 +16,94 @@ func TestNoTlsConnectivity(t *testing.T) {
 		TlsEnabled: boolPtr(false),
 	}
 
-	cc, err := NewClientConn(cCfg)
-	if err == nil {
-		t.Fatal("expected client error")
-	}
-
 	sCfg := Config{
 		ListenAddr: "127.0.0.1:12345",
 		TlsEnabled: boolPtr(false),
 	}
-	sl, err := NewServerListener(sCfg)
-	if err != nil {
-		t.Fatal("expected no server error=", err)
-	}
-	defer sl.Close()
 
-	cc, err = NewClientConn(cCfg)
+	err := testConnectivity(sCfg, cCfg)
 	if err != nil {
-		t.Fatal("expected no client error=", err)
+		t.Fatal(err)
 	}
-	defer cc.Close()
 }
 
 func Test2WayTlsConnectivity(t *testing.T) {
 	sCfg := Config{
 		ListenAddr:  "127.0.0.1:12345",
 		TlsEnabled:  boolPtr(true),
-		Tls2Way: boolPtr(true),
-		TlsCertFile: absCertPath("server0.crt"),
-		TlsKeyFile:  absCertPath("server0.key"),
-		TlsCAFile:   absCertPath("ca.pem"),
+		Tls2Way:     boolPtr(true),
+		TlsCertFile: absCertPath("server.crt"),
+		TlsKeyFile:  absCertPath("server.key"),
+		TlsCAFile:   absCertPath("ca.crt"),
 	}
 
+	cCfg := Config{
+		ListenAddr:  "127.0.0.1:12345",
+		TlsEnabled:  boolPtr(true),
+		TlsCertFile: absCertPath("client.crt"),
+		TlsKeyFile:  absCertPath("client.key"),
+		TlsCAFile:   absCertPath("ca.crt"),
+	}
+
+	err := testConnectivity(sCfg, cCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func Test2WayTlsConnectivitySkipVerify(t *testing.T) {
+	sCfg := Config{
+		ListenAddr:  "127.0.0.1:12345",
+		TlsEnabled:  boolPtr(true),
+		Tls2Way:     boolPtr(true),
+		TlsCertFile: absCertPath("server1.crt"),
+		TlsKeyFile:  absCertPath("server1.key"),
+		TlsCAFile:   absCertPath("ca.crt"),
+	}
+
+	cCfg := Config{
+		ListenAddr:    "127.0.0.1:12345",
+		TlsEnabled:    boolPtr(true),
+		TlsSkipVerify: boolPtr(true),
+		TlsCertFile:   absCertPath("client.crt"),
+		TlsKeyFile:    absCertPath("client.key"),
+		TlsCAFile:     absCertPath("ca.crt"),
+	}
+
+	err := testConnectivity(sCfg, cCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testConnectivity(sCfg Config, cCfg Config) error {
 	sl, err := NewServerListener(sCfg)
 	if err != nil {
-		t.Fatal("expected no server error=", err)
+		return errors.Wrap(err, "server listen error")
 	}
-	defer sl.Close()
 
+	defer sl.Close()
 	go runTestEchoSrv(sl)
-	cCfg := Config{
-		ListenAddr: "127.0.0.1:12345",
-		TlsEnabled: boolPtr(true),
-		TlsCertFile: absCertPath("client0.crt"),
-		TlsKeyFile:  absCertPath("client0.key"),
-		TlsCAFile:   absCertPath("ca.pem"),
-	}
 
 	cc, err := NewClientConn(cCfg)
 	if err != nil {
-		t.Fatal("expected no client error=", err)
+		return errors.Wrap(err, "client connect error")
 	}
-	defer cc.Close()
 
-	msg := "Test TLS!\n"
+	defer cc.Close()
+	msg := "Test connectivity!\n"
 	n, err := cc.Write([]byte(msg))
 	if err != nil {
-		t.Fatal("client write error=", err)
+		return errors.Wrap(err, "client write error")
 	}
 
 	buf := make([]byte, len(msg))
 	n, err = cc.Read(buf)
 	if err != nil || len(msg) != n || string(buf[:n]) != msg {
-		t.Fatal("client read error, err=", err, ", n=", n, ", msg=", msg, ", resp=", string(buf[:n]))
+		return errors.Wrap(err, fmt.Sprint("client read error, err=", err, ", n=", n,
+			", msg=", msg, ", resp=", string(buf[:n])))
 	}
+	return nil
 }
 
 func absCertPath(certFile string) string {
