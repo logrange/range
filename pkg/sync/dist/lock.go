@@ -30,11 +30,7 @@ type LockProvider interface {
 type Locker interface {
 	sync.Locker
 
-	// LockWithCtx allows to lock the lock object using the context provided.
-	// The expected behavior is to have the object locked (result is nil), or
-	// the result == ctx.Err(), what indicates that the context was cancelled
-	// during the call. If the result is not nil and it is not ctx.Err(), this
-	// indicates about some infrastructural errors, so this should be handled
-	// accordingly.
-	LockWithCtx(ctx context.Context) error
+	// TryLock tries to acquire the lock and return immediately whether the
+	// attempt was successful or not
+	TryLock(ctx context.Context) bool
 }

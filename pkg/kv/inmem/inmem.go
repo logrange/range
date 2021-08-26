@@ -62,6 +62,9 @@ func (ms *mStorage) Lessor() kv.Lessor {
 // ErrAlreadyExists error if it already exists in the storage.
 // Create returns version of the new record with error=nil
 func (ms *mStorage) Create(ctx context.Context, record kv.Record) (kv.Version, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
 	if len(record.Key) == 0 {
 		return 0, fmt.Errorf("Could not add a record with empty key")
 	}

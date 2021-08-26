@@ -95,36 +95,23 @@ func (dlp *kvLockProvider) NewLocker(name string) Locker {
 	return lock
 }
 
-// LockWithCtx is part of Locker.
-func (l *kvLock) LockWithCtx(ctx context.Context) error {
+func (l *kvLock) TryLock(ctx context.Context) bool {
 	atomic.AddInt32(&l.waiters, 1)
 	defer atomic.AddInt32(&l.waiters, -1)
-	if err := l.lockInternal(ctx); err != nil {
-		return err
+	if err := l.tryLockInternal(); err != nil {
+		return false
 	}
-
-	err := ctx.Err()
-	var ver kv.Version
-	for err == nil {
-		ver, err = l.dlp.Storage.Create(ctx, kv.Record{Key: l.key, Value: dummyValue, Lease: l.dlp.lease.Id()})
-		if err == nil {
-			return nil
-		}
-
-		if err == kv.ErrAlreadyExists {
-			_, _ = l.dlp.Storage.WaitForVersionChange(ctx, l.key, ver)
-			err = ctx.Err()
-		}
+	if _, err := l.dlp.Storage.Create(ctx, kv.Record{Key: l.key, Value: dummyValue, Lease: l.dlp.lease.Id()}); err == nil {
+		return true
 	}
-
 	atomic.StoreInt32(&l.lckCntr, 0)
 	l.lockCh <- true
-	return err
+	return false
 }
 
 // Lock is part of sync.Locker. It allows to acquire and hold the distributed lock
 func (l *kvLock) Lock() {
-	err := l.LockWithCtx(context.Background())
+	err := l.lockWithCtx(context.Background())
 	if err != nil {
 		panic("kvLock: unhandled error situation while locking err=" + err.Error())
 	}
@@ -152,6 +139,33 @@ func (l *kvLock) String() string {
 		atomic.LoadInt32(&l.lckCntr), l.key, l.dlp.isDone(), atomic.LoadInt32(&l.waiters))
 }
 
+// lockWithCtx is part of Locker.
+func (l *kvLock) lockWithCtx(ctx context.Context) error {
+	atomic.AddInt32(&l.waiters, 1)
+	defer atomic.AddInt32(&l.waiters, -1)
+	if err := l.lockInternal(ctx); err != nil {
+		return err
+	}
+
+	err := ctx.Err()
+	var ver kv.Version
+	for err == nil {
+		ver, err = l.dlp.Storage.Create(ctx, kv.Record{Key: l.key, Value: dummyValue, Lease: l.dlp.lease.Id()})
+		if err == nil {
+			return nil
+		}
+
+		if err == kv.ErrAlreadyExists {
+			_, _ = l.dlp.Storage.WaitForVersionChange(ctx, l.key, ver)
+			err = ctx.Err()
+		}
+	}
+
+	atomic.StoreInt32(&l.lckCntr, 0)
+	l.lockCh <- true
+	return err
+}
+
 func (l *kvLock) isLocked() bool {
 	return atomic.LoadInt32(&l.lckCntr) == 1
 }
@@ -167,5 +181,19 @@ func (l *kvLock) lockInternal(ctx context.Context) error {
 		return nil
 	case <-l.dlp.done:
 		return fmt.Errorf("kvLock.lockInternal(): locking mechanism is shutdown")
+	}
+}
+
+func (l *kvLock) tryLockInternal() error {
+	select {
+	case <-l.lockCh:
+		if !atomic.CompareAndSwapInt32(&l.lckCntr, 0, 1) {
+			panic("kvLock.lockInternal(): internal error, invalid state " + l.String())
+		}
+		return nil
+	case <-l.dlp.done:
+		return fmt.Errorf("kvLock.lockInternal(): locking mechanism is shutdown")
+	default:
+		return fmt.Errorf("could not acquire")
 	}
 }

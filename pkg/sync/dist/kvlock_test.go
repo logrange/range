@@ -68,9 +68,9 @@ func TestKvDistLock_Lock(t *testing.T) {
 
 func TestKvDistLock_LockAfterShutdown(t *testing.T) {
 	dlp := newKVDLP()
-	lock := dlp.NewLocker("test")
+	lock := dlp.NewLocker("test").(*kvLock)
 	tearOff(dlp)
-	err := lock.LockWithCtx(context.Background())
+	err := lock.lockWithCtx(context.Background())
 	assert.NotNil(t, err)
 	assert.Panics(t, lock.Lock)
 }
@@ -114,7 +114,7 @@ func TestKvDistLock_CancelCtxInLock(t *testing.T) {
 
 	start := time.Now()
 	ctx, _ := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	err := lock1.LockWithCtx(ctx)
+	err := lock1.lockWithCtx(ctx)
 	assert.True(t, time.Now().Sub(start) >= 100*time.Millisecond)
 	assert.Equal(t, ctx.Err(), err)
 	assert.NotNil(t, err)
@@ -133,7 +133,7 @@ func TestKvDistLock_CancelCtxWithRaise(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := lock2.LockWithCtx(ctx)
+	err := lock2.lockWithCtx(ctx)
 	assert.Equal(t, ctx.Err(), err)
 
 	assert.False(t, lock2.isLocked())
@@ -152,7 +152,7 @@ func TestKvDistLock_LockExpiredCtx(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := lock2.LockWithCtx(ctx)
+	err := lock2.lockWithCtx(ctx)
 	assert.Equal(t, ctx.Err(), err)
 	assert.NotNil(t, err)
 	assert.False(t, lock2.isLocked())
@@ -208,6 +208,26 @@ func TestKvDistLock_Unlock(t *testing.T) {
 
 	lock1 := dlp.NewLocker("test").(*kvLock)
 	assert.Panics(t, lock1.Unlock)
+}
+
+func TestKvDistLock_TryLock(t *testing.T) {
+	dlp := newKVDLP()
+	defer tearOff(dlp)
+	lock1 := dlp.NewLocker("test").(*kvLock)
+	lock2 := dlp.NewLocker("test").(*kvLock)
+
+	lock1.Lock()
+	assert.False(t, lock2.TryLock(context.Background()))
+	lock1.Unlock()
+	assert.True(t, lock2.TryLock(context.Background()))
+	assert.False(t, lock1.TryLock(context.Background()))
+	lock2.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	assert.False(t, lock2.TryLock(ctx))
+	lock1.Lock()
+	lock1.Unlock()
 }
 
 func newKVDLP() *kvLockProvider {
